@@ -7,12 +7,6 @@
     "public": "apps/web/out",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "trailingSlash": true,
-    "rewrites": [
-      {
-        "source": "/subjects/**",
-        "destination": "/subjects/index.html"
-      }
-    ],
     "headers": [
       {
         "source": "**",

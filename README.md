@@ -2,7 +2,7 @@
 
 A minimal college schedule manager. Weekly timetable, tasks, study progress, and reminders — on the web and on Android, sharing one account and one dataset in real time.
 
-**Status:** Phase 0. The scaffold is written but has not been built or run yet — this machine still needs the toolchain from [`docs/setup.md`](docs/setup.md).
+**Status:** v1 is written end to end — web app, Android app, Firestore rules, and the local alarm engine. It has **not been compiled or run yet**: this machine still needs the toolchain from [`docs/setup.md`](docs/setup.md). Treat the first build as a debugging session, not a formality.
 
 ---
 
@@ -74,7 +74,7 @@ Notes:
 
 - Per-subject progress and weekly study hours are **derived** from tasks and sessions, never stored. Aggregates stored client-side go stale while offline.
 - `alarmState` documents are created only when a user acts on a fired alarm: `eventId = alarmId_fireAtEpochMin`. They are client-writable and cleaned up on launch after 30 days.
-- Kanban order uses a fractional string `sortKey`, so reordering never needs a transaction.
+- Kanban order uses a numeric `order` with midpoint inserts, so reordering never needs a transaction.
 - Conflict resolution is Firestore's native last-write-wins per field, with `updatedAt: serverTimestamp()` on every document for auditability. Multi-field edits are a single atomic `update()`. No read-before-write, so offline writes keep working.
 
 ## Phase plan
@@ -92,6 +92,15 @@ Notes:
 | 8 | Polish + phase 2 extras | Widget, attendance, exam countdown, GPA, CSV export |
 
 Phase 5 is a hard gate: sync and offline semantics are cheap to prove on the web and expensive to debug across two platforms.
+
+Phases 0–7 are implemented in this repository. Phase 8 (widget, attendance, exam countdown, GPA, CSV export) is deliberately not started.
+
+Known v1 deviations from the original outline, all for static-export or scope reasons:
+
+- Subject detail is `/subjects/?id=…`, not `/subjects/[id]`, because a static export cannot pre-render unknown ids. Deep links still work.
+- The web kanban board is drag-and-drop; Android v1 uses a list with tap-to-cycle status and long-press to delete. Both write the same `status` and `order` fields.
+- Web reminders appear in an open tab only. Android alarms are the reliable path.
+- Android reads its Firebase config from `local.properties` via `BuildConfig` instead of `google-services.json`, so the repo builds without a generated credential file.
 
 ## Repository layout
 

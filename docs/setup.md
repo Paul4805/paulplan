@@ -69,8 +69,8 @@ git config --global core.longpaths true
 
 1. Create a project named **slot-app** on the **Spark** plan. No billing account.
 2. **Authentication → Sign-in method**: enable **Google** and **Email/Password**.
-3. **Project settings → Your apps → Web**: register an app, copy the config block into `apps/web/.env.local` (see `apps/web/.env.example`).
-4. **Project settings → Your apps → Android**: register `com.slot.app`. The debug SHA-1 comes from `./gradlew signingReport` after step 3.5 below. (Not needed until the Android Firebase SDK lands in Phase 6, but registering now avoids a detour.)
+3. **Project settings → Your apps → Web**: register a web app and copy the config into `apps/web/.env.local`. The same values go into `apps/android/local.properties` (see step 3.5).
+4. **Project settings → Your apps → Android**: register `com.slot.app`. The debug SHA-1 comes from `./gradlew signingReport` after step 3.5. (Required for Google sign-in on Android, not for email/password.)
 5. **Hosting**: create the default site. `firebase.json` already points at `apps/web/out`.
 6. **Firestore**: create the database in production mode once you are ready to deploy rules. The emulator does not need it.
 
@@ -106,10 +106,29 @@ pnpm verify
 # 3.5 Android. The wrapper JAR is a binary and is not committed, so create it once:
 cd apps\android
 gradle wrapper --gradle-version 8.9
-.\gradlew.bat assembleDebug
-.\gradlew.bat signingReport   # copy the debug SHA-1 into the Firebase Android app
+```
 
-# Install on a connected phone or running emulator:
+Before the first Android build, create `apps/android/local.properties` with the Firebase web app values
+(the same ones as `.env.local`) plus the OAuth web client id:
+
+```properties
+sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
+firebase.apiKey=...
+firebase.applicationId=1:...:android:...
+firebase.projectId=slot-app
+firebase.storageBucket=slot-app.firebasestorage.app
+firebase.senderId=...
+google.webClientId=...apps.googleusercontent.com
+```
+
+`firebase.applicationId` is the Android app's `mobilesdk_app_id` from the Firebase console. `google.webClientId`
+is the **Web** OAuth client id (Google Cloud → Credentials), used by Credential Manager. Leave it blank to
+use email sign-in only. There is deliberately no `google-services.json` and no Google Services plugin:
+`SlotApp` builds `FirebaseOptions` from these values at runtime.
+
+```powershell
+.\gradlew.bat assembleDebug
+.\gradlew.bat signingReport   # debug SHA-1, needed for Google sign-in / Firebase console
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
@@ -137,7 +156,8 @@ firebase deploy --only hosting,firestore:rules
 
 ## 5. What is intentionally absent
 
-- No `google-services.json` yet: the Android app does not include the Firebase SDK until Phase 6.
+- No `google-services.json` and no Google Services Gradle plugin: the Android app builds `FirebaseOptions` from `local.properties` at runtime.
 - No Gradle wrapper JAR: generated once (step 3.5) rather than committed as a binary.
 - No CI pipeline: `pnpm verify` is the check. A GitHub Actions workflow is a small addition later if wanted.
 - No Cloud Functions, no `firebase-functions` dependency, no Blaze plan. Nothing in the codebase calls a server.
+- No PNG app icons. The web manifest and Android launcher use SVG/vector assets; add PNGs if a launcher rejects them.

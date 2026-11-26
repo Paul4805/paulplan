@@ -137,12 +137,10 @@ Resolution order for a class's timezone: `terms/{termId}.timezone` → `meta/pro
 | `priority` | `'low' \| 'medium' \| 'high'` | yes |
 | `status` | `'todo' \| 'doing' \| 'done'` | yes |
 | `completedAt` | timestamp \| null | no |
-| `sortKey` | string, fractional index | no |
-
-```json
+| `order` | number, midpoint-inserted | no |```json
 { "title": "Problem set 3", "subjectId": "cs301",
   "dueAt": "<ts>", "priority": "high", "status": "todo",
-  "completedAt": null, "sortKey": "a0", "createdAt": "<ts>", "updatedAt": "<ts>" }
+  "completedAt": null, "order": 1000, "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
 ### `studySessions`
@@ -215,7 +213,7 @@ Data volume per user is small (hundreds of documents), so screens subscribe to w
 
 | Screen | Collections listened |
 | --- | --- |
-| Today | `classes`, `tasks`, `alarms`, `alarmState`, last 7 days of `studySessions` |
+| Today | `classes`, `tasks`, `alarms`, `alarmState`, `studySessions` (filtered to today/this week in memory) |
 | Timetable | `subjects`, `classes`, `terms` |
 | Tasks | `tasks`, `subjects` |
 | Subject detail | `subjects`, `tasks`, `studySessions` |
@@ -231,7 +229,7 @@ One repository object owns each listener for the process lifetime; screens subsc
 - Firestore's persistent cache is the offline store and the write queue. Web enables `persistentLocalCache` at init; Android uses the default persistent cache. Writes made offline complete locally, appear immediately, and flush in order on reconnect.
 - There is no separate outbox, no retry loop, and no client-side conflict resolver.
 - Resolution is Firestore's native per-field last-write-wins on server receipt. Every edit is a single atomic `update()`/`set(merge: true)`, so two devices editing different fields both survive.
-- Reordering is a `sortKey` update, not an index cascade, so concurrent drags cannot corrupt a list.
+- Reordering is an `order` update (midpoint between neighbours), not an index cascade, so concurrent drags cannot corrupt a list.
 - Aggregates are derived, so they cannot drift.
 
 ---

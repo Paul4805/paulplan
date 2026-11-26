@@ -8,7 +8,30 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+
+data class TagPalette(
+    val indigo: Color,
+    val sky: Color,
+    val violet: Color,
+    val amber: Color,
+    val rose: Color,
+    val emerald: Color,
+)
+
+val LocalTagPalette = staticCompositionLocalOf {
+    TagPalette(
+        Tokens.Tag.Light.indigo,
+        Tokens.Tag.Light.sky,
+        Tokens.Tag.Light.violet,
+        Tokens.Tag.Light.amber,
+        Tokens.Tag.Light.rose,
+        Tokens.Tag.Light.emerald,
+    )
+}
 
 private val LightScheme = lightColorScheme(
     primary = Tokens.Light.accentSolid,
@@ -69,10 +92,32 @@ fun SlotTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkScheme else LightScheme,
-        typography = SlotTypography,
-        shapes = SlotShapes,
-        content = content,
-    )
+    val palette = if (darkTheme) {
+        TagPalette(
+            Tokens.Tag.Dark.indigo,
+            Tokens.Tag.Dark.sky,
+            Tokens.Tag.Dark.violet,
+            Tokens.Tag.Dark.amber,
+            Tokens.Tag.Dark.rose,
+            Tokens.Tag.Dark.emerald,
+        )
+    } else {
+        TagPalette(
+            Tokens.Tag.Light.indigo,
+            Tokens.Tag.Light.sky,
+            Tokens.Tag.Light.violet,
+            Tokens.Tag.Light.amber,
+            Tokens.Tag.Light.rose,
+            Tokens.Tag.Light.emerald,
+        )
+    }
+
+    CompositionLocalProvider(LocalTagPalette provides palette) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkScheme else LightScheme,
+            typography = SlotTypography,
+            shapes = SlotShapes,
+            content = content,
+        )
+    }
 }
