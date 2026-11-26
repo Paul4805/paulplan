@@ -1,0 +1,22 @@
+{
+  "name": "slot",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "prepare": "pnpm tokens",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "tokens": "pnpm --filter @slot/design-tokens build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test:rules": "turbo run test:rules",
+    "verify": "pnpm tokens && pnpm typecheck && pnpm lint && pnpm test:rules"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  }
+}

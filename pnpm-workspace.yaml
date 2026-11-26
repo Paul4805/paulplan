@@ -1,0 +1,5 @@
+# pnpm workspace. apps/android is a Gradle project with no package.json,
+# so pnpm ignores it; it lives under apps/ only for repo symmetry.
+packages:
+  - "apps/*"
+  - "packages/*"

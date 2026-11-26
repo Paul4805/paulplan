@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.turbo/
+.next/
+out/
+dist/
+coverage/
+*.log
+
+# Generated design tokens — created by `pnpm tokens` (or automatically on `pnpm install`)
+apps/web/app/tokens.generated.css
+apps/web/lib/tokens.generated.ts
+apps/android/app/src/main/java/com/slot/app/core/design/Tokens.kt
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Android
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
+apps/android/.idea/
+apps/android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+google-services.json
+
+# OS / editors
+.DS_Store
+Thumbs.db

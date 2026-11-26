@@ -1,0 +1,12 @@
+# Keep the repo LF everywhere; Windows shells and Gradle cope fine.
+# This overrides any core.autocrlf=true on a contributor's machine.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jar binary
+*.keystore binary
+*.jks binary

@@ -1,0 +1,12 @@
+{
+  "name": "@slot/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single source of design tokens, compiled to CSS variables, a TS module, and Kotlin objects.",
+  "scripts": {
+    "build": "node generate.mjs",
+    "watch": "node --watch generate.mjs"
+  },
+  "files": ["tokens.json", "generate.mjs"]
+}

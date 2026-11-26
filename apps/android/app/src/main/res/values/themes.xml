@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Slot" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/canvas_light</item>
+    </style>
+</resources>
