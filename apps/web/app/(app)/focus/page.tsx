@@ -32,7 +32,12 @@ interface TimerState {
 
 const STORE_KEY = 'slot-pomodoro'
 
-function loadTimer(): TimerState | null {
+interface LoadedTimer {
+  state: TimerState
+  expired: boolean
+}
+
+function loadTimer(): LoadedTimer | null {
   try {
     const raw = localStorage.getItem(STORE_KEY)
     if (!raw) return null
@@ -40,9 +45,12 @@ function loadTimer(): TimerState | null {
     if (!parsed || typeof parsed !== 'object') return null
     if (parsed.running && parsed.endsAt) {
       const remaining = Math.max(0, Math.round((parsed.endsAt - Date.now()) / 1000))
-      return { ...parsed, remainingSec: remaining, running: remaining > 0 }
+      return {
+        state: { ...parsed, remainingSec: remaining, running: remaining > 0 },
+        expired: remaining === 0,
+      }
     }
-    return parsed
+    return { state: parsed, expired: false }
   } catch {
     return null
   }
@@ -76,11 +84,15 @@ export default function FocusPage() {
     subjectId: '',
   })
   const [hydrated, setHydrated] = useState(false)
+  const [recovered, setRecovered] = useState<TimerState | null>(null)
   const finishedFor = useRef<number | null>(null)
 
   useEffect(() => {
-    const stored = loadTimer()
-    if (stored) setTimer(stored)
+    const loaded = loadTimer()
+    if (loaded) {
+      setTimer(loaded.state)
+      if (loaded.expired) setRecovered(loaded.state)
+    }
     setHydrated(true)
   }, [])
 
@@ -105,20 +117,45 @@ export default function FocusPage() {
     return () => clearInterval(interval)
   }, [timer.running])
 
-  const finish = useCallback(async () => {
-    if (!user) return
-    if (timer.endsAt !== null && finishedFor.current === timer.endsAt) return
-    finishedFor.current = timer.endsAt
+  const finish = useCallback(
+    async (completed: TimerState) => {
+      if (!user) return
+      if (completed.endsAt !== null && finishedFor.current === completed.endsAt) return
+      finishedFor.current = completed.endsAt
 
-    const wasFocus = timer.phase === 'focus'
-    const minutes = wasFocus ? focusMinutes : timer.phase === 'short' ? shortMinutes : longMinutes
+      const wasFocus = completed.phase === 'focus'
+      const minutes = wasFocus
+        ? focusMinutes
+        : completed.phase === 'short'
+          ? shortMinutes
+          : longMinutes
 
-    if (wasFocus) {
+      const nextPhase: Phase = wasFocus ? 'short' : 'focus'
+      const nextMinutes = nextPhase === 'focus' ? focusMinutes : shortMinutes
+      const next: TimerState = {
+        ...completed,
+        phase: nextPhase,
+        running: false,
+        endsAt: null,
+        remainingSec: nextMinutes * 60,
+      }
+
+      // Commit the advanced state before the network write. A remount (or a
+      // second tab) then sees a finished timer instead of logging twice.
+      setTimer(next)
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(next))
+      } catch {
+        // Storage blocked; the in-memory state is still correct.
+      }
+
+      if (!wasFocus) return
+
       try {
         const ended = new Date()
         const started = new Date(ended.getTime() - minutes * 60_000)
         await createDoc(userPath(user.uid, 'studySessions'), {
-          subjectId: timer.subjectId || null,
+          subjectId: completed.subjectId || null,
           taskId: null,
           startedAt: Timestamp.fromDate(started),
           endedAt: Timestamp.fromDate(ended),
@@ -130,23 +167,19 @@ export default function FocusPage() {
         console.error(cause)
         toast({ title: 'Focus finished, but the session did not save', tone: 'danger' })
       }
-    }
-
-    const nextPhase: Phase = wasFocus ? 'short' : 'focus'
-    const nextMinutes = nextPhase === 'focus' ? focusMinutes : shortMinutes
-
-    setTimer((current) => ({
-      ...current,
-      phase: nextPhase,
-      running: false,
-      endsAt: null,
-      remainingSec: nextMinutes * 60,
-    }))
-  }, [user, timer.phase, timer.endsAt, timer.subjectId, focusMinutes, shortMinutes, toast])
+    },
+    [user, focusMinutes, shortMinutes, longMinutes, toast],
+  )
 
   useEffect(() => {
-    if (timer.running && timer.remainingSec <= 0) void finish()
-  }, [timer.running, timer.remainingSec, finish])
+    if (timer.running && timer.remainingSec <= 0) void finish(timer)
+  }, [timer, finish])
+
+  useEffect(() => {
+    if (!recovered) return
+    setRecovered(null)
+    void finish(recovered)
+  }, [recovered, finish])
 
   if (!user) return null
 

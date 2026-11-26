@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // The generator writes into the two consuming projects, so there is
+      // nothing to cache inside this package. It runs in milliseconds anyway.
+      "outputs": []
+    }
+  }
+}

@@ -45,7 +45,9 @@ object AlarmScheduler {
             }
         }
 
-        AlarmSnapshot.save(context, events)
+        // Persist only future occurrences: the snapshot is what a boot receiver
+        // re-arms, and it should not grow with every past alarm.
+        AlarmSnapshot.save(context, events.filter { it.triggerAtMillis > now })
     }
 
     fun armOne(context: Context, event: ScheduledAlarm) {

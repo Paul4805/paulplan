@@ -34,11 +34,11 @@ function localDate(date: string, time: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-function emptyForm(status: TaskStatus): FormState {
+function emptyForm(status: TaskStatus, subjectId = ''): FormState {
   return {
     title: '',
     notes: '',
-    subjectId: '',
+    subjectId,
     date: '',
     time: '17:00',
     priority: 'medium',
@@ -52,22 +52,24 @@ export function TaskDialog({
   subjects,
   initial,
   defaultStatus = 'todo',
+  defaultSubjectId = '',
 }: {
   open: boolean
   onClose: () => void
   subjects: Subject[]
   initial?: Task | null
   defaultStatus?: TaskStatus
+  defaultSubjectId?: string
 }) {
   const { user } = useAuth()
   const toast = useToast()
-  const [form, setForm] = useState<FormState>(() => emptyForm(defaultStatus))
+  const [form, setForm] = useState<FormState>(() => emptyForm(defaultStatus, defaultSubjectId))
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!open) return
     if (!initial) {
-      setForm(emptyForm(defaultStatus))
+      setForm(emptyForm(defaultStatus, defaultSubjectId))
       return
     }
 
@@ -81,7 +83,7 @@ export function TaskDialog({
       priority: initial.priority,
       status: initial.status,
     })
-  }, [open, initial, defaultStatus])
+  }, [open, initial, defaultStatus, defaultSubjectId])
 
   if (!user) return null
 

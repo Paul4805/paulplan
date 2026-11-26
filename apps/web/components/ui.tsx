@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -283,13 +284,40 @@ export function Dialog({
   footer?: ReactNode
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const descriptionId = useId()
 
   useEffect(() => {
     if (!open) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      // Keep focus inside the dialog; the app has no focus-trap library.
+      const panel = panelRef.current
+      if (!panel) return
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null)
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) return
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
+
     document.addEventListener('keydown', onKeyDown)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -319,12 +347,17 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={description ? descriptionId : undefined}
         className="max-h-[92vh] w-full overflow-y-auto rounded-t-sheet border border-border bg-surface p-5 shadow-modal sm:max-w-lg sm:rounded-sheet"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-ink">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-ink-muted">{description}</p> : null}
+            {description ? (
+              <p id={descriptionId} className="mt-1 text-sm text-ink-muted">
+                {description}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"

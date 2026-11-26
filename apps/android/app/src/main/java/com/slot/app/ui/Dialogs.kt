@@ -305,6 +305,13 @@ fun AddSubjectDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
+                    value = room,
+                    onValueChange = { room = it },
+                    label = { Text("Room (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
                     value = target,
                     onValueChange = { target = it },
                     label = { Text("Weekly target hours (optional)") },

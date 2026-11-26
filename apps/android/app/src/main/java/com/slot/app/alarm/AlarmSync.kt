@@ -30,19 +30,28 @@ import kotlinx.coroutines.launch
  */
 object AlarmSync {
     private var job: Job? = null
+    private var sawSignature = false
 
     fun start(context: Context) {
         val app = context.applicationContext
         val auth = com.slot.app.data.AuthRepository.authOrNull() ?: return
 
         auth.addAuthStateListener { state ->
-            job?.cancel()
-
             val user = state.currentUser
+
             if (user == null) {
-                AlarmScheduler.cancelAll(app)
+                // Firebase emits its restored session asynchronously. Cancelling
+                // on the very first null would wipe alarms at every cold start.
+                if (sawSignature) {
+                    job?.cancel()
+                    AlarmScheduler.cancelAll(app)
+                }
+                sawSignature = true
                 return@addAuthStateListener
             }
+
+            sawSignature = true
+            job?.cancel()
 
             job = CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
                 runCatching {

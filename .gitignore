@@ -9,6 +9,7 @@ out/
 dist/
 coverage/
 *.log
+*.tsbuildinfo
 
 # Generated design tokens — created by `pnpm tokens` (or automatically on `pnpm install`)
 apps/web/app/tokens.generated.css

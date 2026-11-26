@@ -420,7 +420,7 @@ export default function SettingsPage() {
           <Button
             variant="secondary"
             onClick={() => updateProfileDoc({ timezone: detectedZone }, 'Timezone updated')}
-            disabled={busy === 'Timezone updated'}
+            disabled={busy !== null}
           >
             Use {detectedZone}
           </Button>

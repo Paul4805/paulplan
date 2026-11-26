@@ -387,6 +387,7 @@ function SubjectDetail({
         onClose={() => setTaskOpen(false)}
         subjects={orderedSubjects}
         initial={taskTarget}
+        defaultSubjectId={subject.id}
       />
     </div>
   )

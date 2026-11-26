@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { user } = useAuth()
   const path = currentPath(pathname)
-  const title = NAV.find((item) => item.href === path)?.label ?? 'Slot'
+  const title = path === '/subjects' ? 'Subjects' : (NAV.find((item) => item.href === path)?.label ?? 'Slot')
 
   return (
     <div className="min-h-dvh bg-canvas">
