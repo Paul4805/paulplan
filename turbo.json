@@ -20,6 +20,10 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "test:rules": {
       "cache": false,
       "outputs": []

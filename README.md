@@ -2,7 +2,21 @@
 
 A minimal college schedule manager. Weekly timetable, tasks, study progress, and reminders — on the web and on Android, sharing one account and one dataset in real time.
 
-**Status:** v1 is written end to end — web app, Android app, Firestore rules, and the local alarm engine. It has **not been compiled or run yet**: this machine still needs the toolchain from [`docs/setup.md`](docs/setup.md). Treat the first build as a debugging session, not a formality.
+**Status:** v1 is implemented and verified at build level — see [Verification](#verification). Android runtime behaviour (alarms firing, reboot re-arm, permission prompts) still needs a pass on a real device; no device was attached during this build.
+
+## Verification
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Design tokens generate | `pnpm tokens` | 3 artefacts, web + Kotlin |
+| Web unit tests (time/occurrence logic) | `pnpm test` | 10 passed |
+| Web typecheck + lint | `pnpm typecheck`, `pnpm lint` | clean |
+| Web static export | `pnpm build` | 9 routes exported to `apps/web/out` |
+| Firestore rules | `pnpm test:rules` | 19 passed against the emulator |
+| Android compile | `.\gradlew.bat assembleDebug` | `app-debug.apk`, 14.7 MB |
+| Android lint | `.\gradlew.bat :app:lintDebug` | 0 errors, 44 warnings (version/deprecation noise) |
+
+`pnpm verify` runs tokens, web tests, typecheck, lint, and the emulator rules tests in one command.
 
 ---
 

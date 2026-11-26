@@ -103,9 +103,8 @@ pnpm verify
 ```
 
 ```powershell
-# 3.5 Android. The wrapper JAR is a binary and is not committed, so create it once:
+# 3.5 Android. The wrapper is committed; no `gradle wrapper` step needed.
 cd apps\android
-gradle wrapper --gradle-version 8.9
 ```
 
 Before the first Android build, create `apps/android/local.properties` with the Firebase web app values
@@ -157,7 +156,7 @@ firebase deploy --only hosting,firestore:rules
 ## 5. What is intentionally absent
 
 - No `google-services.json` and no Google Services Gradle plugin: the Android app builds `FirebaseOptions` from `local.properties` at runtime.
-- No Gradle wrapper JAR: generated once (step 3.5) rather than committed as a binary.
+- The Gradle wrapper is committed, so `.\gradlew.bat` works after a clone; only the SDK packages still need installing.
 - No CI pipeline: `pnpm verify` is the check. A GitHub Actions workflow is a small addition later if wanted.
 - No Cloud Functions, no `firebase-functions` dependency, no Blaze plan. Nothing in the codebase calls a server.
 - No PNG app icons. The web manifest and Android launcher use SVG/vector assets; add PNGs if a launcher rejects them.
