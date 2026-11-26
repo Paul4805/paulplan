@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorNote,
   PageHeader,
   Progress,
   Skeleton,
@@ -145,8 +146,13 @@ export default function TodayPage() {
         }
       />
 
-      <section aria-label="At a glance" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="p-4">
+      {classes.error ?? tasks.error ? (
+        <div className="mb-6">
+          <ErrorNote error={classes.error ?? tasks.error} what="your schedule" />
+        </div>
+      ) : null}
+
+      <section aria-label="At a glance" className="grid grid-cols-2 gap-3 lg:grid-cols-4">        <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Now</p>
           {currentClass ? (
             <>

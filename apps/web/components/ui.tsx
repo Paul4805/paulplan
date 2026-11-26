@@ -152,6 +152,15 @@ export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden className={cn('animate-pulse rounded-chip bg-border', className)} />
 }
 
+export function ErrorNote({ error, what }: { error: Error | null; what: string }) {
+  if (!error) return null
+  return (
+    <div role="alert" className="rounded-card border border-danger bg-surface p-3 text-sm text-danger">
+      Could not load {what}. {error.message}
+    </div>
+  )
+}
+
 export function EmptyState({
   title,
   description,

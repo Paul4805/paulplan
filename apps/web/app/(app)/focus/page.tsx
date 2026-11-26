@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorNote,
   Field,
   PageHeader,
   Select,
@@ -255,6 +256,12 @@ export default function FocusPage() {
         title="Focus"
         description="A pomodoro that logs itself. The timer keeps running if you close this tab."
       />
+
+      {sessions.error ? (
+        <div className="mb-4">
+          <ErrorNote error={sessions.error} what="your study sessions" />
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="flex flex-col items-center gap-6 p-6 sm:p-10">

@@ -27,6 +27,7 @@ class SlotRepository(
     ): Flow<List<T>> = callbackFlow {
         val registration = col(name).addSnapshotListener { snapshot, error ->
             if (error != null) {
+                android.util.Log.e("Slot", "Listener failed for $name", error)
                 close(error)
                 return@addSnapshotListener
             }
@@ -45,6 +46,7 @@ class SlotRepository(
         val registration = col("meta").document("profile")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    android.util.Log.e("Slot", "Profile listener failed", error)
                     close(error)
                     return@addSnapshotListener
                 }

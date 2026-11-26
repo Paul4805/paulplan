@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Card,
+  ErrorNote,
   Field,
   Input,
   PageHeader,
@@ -189,6 +190,12 @@ export default function SettingsPage() {
   return (
     <div className="space-y-10">
       <PageHeader title="Settings" description="Account, appearance, reminders, and your data." />
+
+      {profile.error ? (
+        <div className="mb-4">
+          <ErrorNote error={profile.error} what="your settings" />
+        </div>
+      ) : null}
 
       <section aria-labelledby="account">
         <h2 id="account" className="mb-3 text-base font-medium text-ink">

@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorNote,
   Field,
   Input,
   PageHeader,
@@ -441,6 +442,12 @@ function SubjectsInner() {
           </Button>
         }
       />
+
+      {subjects.error ? (
+        <div className="mb-4">
+          <ErrorNote error={subjects.error} what="your subjects" />
+        </div>
+      ) : null}
 
       {subjects.items.length === 0 ? (
         <EmptyState

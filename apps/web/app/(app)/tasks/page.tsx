@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   EmptyState,
+  ErrorNote,
   PageHeader,
   Segmented,
   Select,
@@ -190,6 +191,12 @@ export default function TasksPage() {
           </Button>
         }
       />
+
+      {tasks.error ? (
+        <div className="mb-4">
+          <ErrorNote error={tasks.error} what="your tasks" />
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
