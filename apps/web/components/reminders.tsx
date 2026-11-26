@@ -3,17 +3,17 @@
 import { useEffect, useState } from 'react'
 
 import { useAuth } from '@/lib/auth'
-import { useCollection, useNow, userPath } from '@/lib/db'
+import { useCollection, useDoc, useNow, userPath } from '@/lib/db'
 import {
   alarmMinutesForDate,
   dayOfWeek,
   minutesNow,
   minutesToLabel,
 } from '@/lib/time'
-import type { Alarm, ClassSlot, Subject } from '@/lib/types'
+import type { Alarm, ClassSlot, Profile, Subject } from '@/lib/types'
 
 const SHOWN_KEY = 'slot-reminded'
-const LEAD_MINUTES = 10
+const DEFAULT_LEAD_MINUTES = 10
 
 interface Due {
   key: string
@@ -50,8 +50,13 @@ export function InPageReminders() {
   const alarms = useCollection<Alarm>(user ? userPath(user.uid, 'alarms') : null)
   const classes = useCollection<ClassSlot>(user ? userPath(user.uid, 'classes') : null)
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
+  const profile = useDoc<Profile & { id: string }>(
+    user ? userPath(user.uid, 'meta/profile') : null,
+  )
   const now = useNow(20_000)
   const [due, setDue] = useState<Due | null>(null)
+
+  const leadMinutes = profile.item?.notifications?.leadMinutes ?? DEFAULT_LEAD_MINUTES
 
   useEffect(() => {
     if (!user) return
@@ -67,10 +72,10 @@ export function InPageReminders() {
       const name = subject?.name ?? 'Class'
       const room = slot.room ? ` · ${slot.room}` : ''
 
-      if (slot.startMinutes - LEAD_MINUTES === minutes) {
+      if (leadMinutes > 0 && slot.startMinutes - leadMinutes === minutes) {
         matches.push({
           key: `class:${slot.id}:${dateKey}:lead`,
-          title: `${name} in ${LEAD_MINUTES} minutes`,
+          title: `${name} in ${leadMinutes} minutes`,
           detail: `${minutesToLabel(slot.startMinutes)}${room}`,
         })
       }
@@ -100,7 +105,7 @@ export function InPageReminders() {
       markShown(fresh.key)
       setDue(fresh)
     }
-  }, [now, alarms.items, classes.items, subjects.items, user])
+  }, [now, alarms.items, classes.items, subjects.items, user, leadMinutes])
 
   if (!due) return null
 

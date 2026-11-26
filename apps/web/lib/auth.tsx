@@ -23,6 +23,7 @@ import {
 } from 'react'
 
 import { auth, db } from './firebase'
+import { cleanupAlarmStates } from './db'
 import { DEFAULT_PROFILE } from './types'
 
 interface AuthContextValue {
@@ -90,6 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (next) {
             ensureProfile(next).catch((cause) => {
               console.error('Could not create the profile documents', cause)
+            })
+            cleanupAlarmStates(next.uid).catch((cause) => {
+              console.error('Could not prune old alarm state', cause)
             })
           }
         },

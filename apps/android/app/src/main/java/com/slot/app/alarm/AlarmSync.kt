@@ -57,6 +57,7 @@ object AlarmSync {
                 runCatching {
                     val repo = SlotRepository(FirebaseFirestore.getInstance(), user.uid)
                     repo.ensureProfile(user, ZoneId.systemDefault().id)
+                    runCatching { repo.cleanupAlarmStates() }
 
                     combine(
                         repo.alarms(),

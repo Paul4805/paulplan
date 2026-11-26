@@ -218,6 +218,14 @@ class SlotRepository(
         ).await()
     }
 
+    suspend fun cleanupAlarmStates() {
+        val cutoff = Timestamp(Date(System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000))
+        val stale = col("alarmState").whereLessThan("actedAt", cutoff).get().await()
+        for (document in stale.documents) {
+            runCatching { document.reference.delete().await() }
+        }
+    }
+
     suspend fun updateTheme(theme: String) {
         col("meta").document("profile").set(
             mapOf("theme" to theme, "updatedAt" to FieldValue.serverTimestamp()),

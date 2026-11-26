@@ -7,9 +7,12 @@ import {
   doc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
+  where,
   type DocumentData,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
@@ -126,4 +129,18 @@ export function writeDoc(path: string, values: Record<string, unknown>) {
 export async function fetchAll<T>(path: string): Promise<T[]> {
   const snapshot = await getDocs(collection(db(), path))
   return toItems<T>(snapshot.docs)
+}
+
+/**
+ * alarmState documents are per user action, so they accumulate. There is no
+ * Cloud Function to prune them, so the client deletes its own history older
+ * than 30 days on launch. Rules already permit owner deletes.
+ */
+export async function cleanupAlarmStates(uid: string): Promise<number> {
+  const cutoff = Timestamp.fromDate(new Date(Date.now() - 30 * 86_400_000))
+  const stale = await getDocs(
+    query(collection(db(), userPath(uid, 'alarmState')), where('actedAt', '<', cutoff)),
+  )
+  await Promise.all(stale.docs.map((entry) => deleteDoc(entry.ref)))
+  return stale.size
 }
