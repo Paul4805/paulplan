@@ -46,6 +46,7 @@ import com.slot.app.alarm.AlarmScheduler
 import com.slot.app.alarm.NotificationChannels
 import com.slot.app.core.design.Tokens
 import com.slot.app.data.AlarmItem
+import com.slot.app.data.GarminStore
 import com.slot.app.data.SlotViewModel
 import java.time.ZoneId
 import java.util.Date
@@ -71,6 +72,9 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     var garminKey by remember { mutableStateOf("") }
     val garminConfigured by vm.garminConfigured.collectAsStateWithLifecycle()
     val garminLastSync by vm.garminLastSync.collectAsStateWithLifecycle()
+    val garminHealthAt = remember(garminLastSync) { GarminStore.healthAt(context) }
+    val garminHealthDays = remember(garminLastSync) { GarminStore.healthDays(context) }
+    val garminHealthError = remember(garminLastSync) { GarminStore.healthError(context) }
 
     val notifications = remember(refresh) { NotificationChannels.isGranted(context) }
     val exact = remember(refresh) { NotificationChannels.canScheduleExact(context) }
@@ -312,6 +316,22 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Text(
+                        if (garminHealthAt > 0) {
+                            "Health · $garminHealthDays days synced"
+                        } else {
+                            "Health · waiting for the next sync"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!garminHealthError.isNullOrBlank()) {
+                        Text(
+                            "Health sync: $garminHealthError",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
                         Button(onClick = { vm.syncGarmin(manual = true) }) { Text("Sync now") }
                         TextButton(onClick = { vm.disconnectGarmin() }) { Text("Disconnect") }

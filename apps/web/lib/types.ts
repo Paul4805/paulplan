@@ -92,6 +92,9 @@ export interface GarminStatus {
   lastSyncAt?: Timestamp | null
   lastImported?: number
   requestedAt?: Timestamp | null
+  healthLastSyncAt?: Timestamp | null
+  healthDays?: number
+  healthError?: string | null
 }
 
 export interface Alarm extends WithId {

@@ -2,7 +2,6 @@ package com.slot.app.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,7 +74,6 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val profile by vm.profile.collectAsStateWithLifecycle()
 
     var range by rememberSaveable { mutableStateOf("week") }
-    var detail by remember { mutableStateOf<PtSession?>(null) }
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
@@ -350,58 +348,9 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     "Connect Garmin in Settings to sync sleep, steps and HRV.",
                 )
             }
-
-            SectionLabel("Recent sessions")
-            if (pt.isEmpty()) {
-                EmptyHint("No training yet", "Log a run, a match or a gym session.")
-            } else {
-                pt.take(6).forEach { session ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Tokens.Radius.card))
-                            .clickable { detail = session }
-                            .padding(vertical = Tokens.Space.s2),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3),
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(tagColor(typeColorName(session.type))),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = session.title ?: typeLabel(session.type),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = buildString {
-                                    session.startedAt?.let { append(shortDateLabel(it)) }
-                                    session.distanceKm?.let { append(" · %.1f km".format(it)) }
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Text(
-                            text = "${session.durationMinutes} min",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
         }
 
         Spacer(Modifier.height(Tokens.Space.s4))
-    }
-
-    detail?.let { session ->
-        SessionDetailDialog(session = session, onDismiss = { detail = null })
     }
 }
 
@@ -705,7 +654,7 @@ private fun BreakdownCard(
 }
 
 @Composable
-private fun SessionDetailDialog(session: PtSession, onDismiss: () -> Unit) {
+fun SessionDetailDialog(session: PtSession, onDismiss: () -> Unit) {
     val pace = session.distanceKm?.takeIf { it > 0 }?.let {
         val seconds = session.durationMinutes * 60.0 / it
         "%d:%02d /km".format((seconds / 60).toInt(), (seconds % 60).toInt())

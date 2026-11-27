@@ -90,6 +90,9 @@ Sync status only. The Garmin Personal API key lives on the Android device and is
 | `lastSyncAt` | timestamp | server time |
 | `lastImported` | int | sessions added by the last sync |
 | `requestedAt` | timestamp | written by the web's "Sync now via phone" button; the phone watches it |
+| `healthLastSyncAt` | timestamp | last successful sleep/steps/HRV sync |
+| `healthDays` | int | daily summaries written by that sync |
+| `healthError` | string \| null | last health-only failure; activities still sync |
 | `updatedAt` | timestamp | required by rules |
 
 ```json

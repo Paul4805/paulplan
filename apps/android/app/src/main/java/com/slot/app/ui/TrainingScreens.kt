@@ -1,6 +1,7 @@
 package com.slot.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val sessions by vm.ptSessions.collectAsStateWithLifecycle()
     var addOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<PtSession?>(null) }
+    var detail by remember { mutableStateOf<PtSession?>(null) }
 
     val weekStart = remember {
         LocalDate.now()
@@ -126,7 +128,9 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         } else {
             sessions.forEach { session ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { detail = session },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3),
                 ) {
@@ -190,5 +194,9 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             onDismiss = { deleteTarget = null },
             onConfirm = { vm.deletePtSession(session.id) },
         )
+    }
+
+    detail?.let { session ->
+        SessionDetailDialog(session = session, onDismiss = { detail = null })
     }
 }

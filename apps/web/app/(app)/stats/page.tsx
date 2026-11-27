@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react'
 import {
   Badge,
   Card,
-  Dialog,
   EmptyState,
   ErrorNote,
   PageHeader,
@@ -21,6 +20,7 @@ import { addDays, durationLabel, startOfDay, startOfWeek, toDate } from '@/lib/t
 import type {
   ClassSlot,
   DailyHealth,
+  GarminStatus,
   Profile,
   PtSession,
   PtType,
@@ -69,14 +69,6 @@ function sleepLabel(minutes: number | null): string {
   if (minutes === null) return '—'
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${Math.round(minutes % 60)}m`
-}
-
-function paceLabel(session: PtSession): string | null {
-  if (!session.distanceKm || session.distanceKm <= 0) return null
-  const seconds = (session.durationMinutes * 60) / session.distanceKm
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.round(seconds % 60)
-  return `${minutes}:${rest.toString().padStart(2, '0')} /km`
 }
 
 function Heatmap({
@@ -204,69 +196,9 @@ function StreakCard({
   )
 }
 
-function SessionDetail({
-  session,
-  onClose,
-}: {
-  session: PtSession | null
-  onClose: () => void
-}) {
-  if (!session) return null
-  const started = toDate(session.startedAt)
-  const pace = paceLabel(session)
-
-  const rows: Array<[string, string]> = [
-    ['Duration', durationLabel(session.durationMinutes)],
-    ['Distance', session.distanceKm ? `${Math.round(session.distanceKm * 100) / 100} km` : '—'],
-    ['Pace', pace ?? '—'],
-    ['Average HR', session.avgHr ? `${Math.round(session.avgHr)} bpm` : '—'],
-    ['Max HR', session.maxHr ? `${Math.round(session.maxHr)} bpm` : '—'],
-    ['Elevation', session.elevationGain ? `${Math.round(session.elevationGain)} m` : '—'],
-    ['Calories', session.calories ? `${Math.round(session.calories)} kcal` : '—'],
-    [
-      'Source',
-      session.source === 'garmin-api' || session.source === 'garmin-json'
-        ? 'Garmin'
-        : session.source === 'strava-csv'
-          ? 'Strava'
-          : 'Manual',
-    ],
-  ]
-
-  return (
-    <Dialog open onClose={onClose} title={session.title ?? PT_LABEL[session.type]} description={
-      started
-        ? started.toLocaleString(undefined, {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : 'Session detail'
-    }>
-      <dl className="grid grid-cols-2 gap-3">
-        {rows.map(([label, value]) => (
-          <div key={label} className="rounded-chip border border-border bg-canvas p-3">
-            <dt className="text-xs uppercase tracking-wide text-ink-muted">{label}</dt>
-            <dd className="mt-1 text-sm font-medium tabular-nums text-ink">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {session.notes ? <p className="mt-3 text-sm leading-relaxed text-ink-muted">{session.notes}</p> : null}
-      {session.source === 'garmin-api' ? (
-        <p className="mt-3 text-xs leading-relaxed text-ink-muted">
-          Heart rate, elevation and calories come from Garmin. Splits are available on the watch.
-        </p>
-      ) : null}
-    </Dialog>
-  )
-}
-
 export default function StatsPage() {
   const { user } = useAuth()
   const [range, setRange] = useState<StatsRange>('week')
-  const [detail, setDetail] = useState<PtSession | null>(null)
 
   const study = useCollection<StudySession>(user ? userPath(user.uid, 'studySessions') : null)
   const tasks = useCollection<Task>(user ? userPath(user.uid, 'tasks') : null)
@@ -274,6 +206,9 @@ export default function StatsPage() {
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
   const pt = useCollection<PtSession>(user ? userPath(user.uid, 'ptSessions') : null)
   const health = useCollection<DailyHealth>(user ? userPath(user.uid, 'dailyHealth') : null)
+  const garmin = useDoc<GarminStatus & { id: string }>(
+    user ? userPath(user.uid, 'meta/garmin') : null,
+  )
   const profile = useDoc<Profile & { id: string }>(
     user ? userPath(user.uid, 'meta/profile') : null,
   )
@@ -639,8 +574,21 @@ export default function StatsPage() {
           ) : health.items.length === 0 ? (
             <Card className="p-4">
               <p className="text-sm text-ink-muted">
-                Connect Garmin in the Android app to see sleep, steps and HRV here.
+                {garmin.item?.healthError
+                  ? `Garmin health sync is failing: ${garmin.item.healthError}`
+                  : 'Connect Garmin in the Android app to see sleep, steps and HRV here.'}
               </p>
+              {garmin.item?.healthLastSyncAt ? (
+                <p className="mt-1 text-xs text-ink-muted">
+                  Last health sync{' '}
+                  {garmin.item.healthLastSyncAt.toDate().toLocaleString(undefined, {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              ) : null}
             </Card>
           ) : (
             <div className="grid grid-cols-3 gap-3">
@@ -671,62 +619,7 @@ export default function StatsPage() {
             </div>
           )}
         </div>
-
-        <div className="mt-8" aria-labelledby="recent-sessions">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 id="recent-sessions" className="text-base font-medium text-ink">
-              Recent sessions
-            </h2>
-            <span className="text-xs text-ink-muted">Tap a session for detail</span>
-          </div>
-          {loading ? (
-            <Skeleton className="h-14 w-full" />
-          ) : pt.items.length === 0 ? (
-            <EmptyState title="No training yet" description="Log a run in the Training tab." />
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {[...pt.items]
-                .sort((a, b) => (b.startedAt?.toMillis() ?? 0) - (a.startedAt?.toMillis() ?? 0))
-                .slice(0, 8)
-                .map((session) => {
-                  const started = toDate(session.startedAt)
-                  return (
-                    <li key={session.id}>
-                      <button
-                        type="button"
-                        onClick={() => setDetail(session)}
-                        className="flex w-full items-center gap-3 rounded-card border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-elevated"
-                      >
-                        <span
-                          aria-hidden
-                          className="size-2 shrink-0 rounded-pill"
-                          style={{ backgroundColor: `var(--tag-${PT_COLOR[session.type]})` }}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-ink">
-                            {session.title ?? PT_LABEL[session.type]}
-                          </span>
-                          <span className="block text-xs text-ink-muted">
-                            {started
-                              ? started.toLocaleDateString(undefined, {
-                                  day: 'numeric',
-                                  month: 'short',
-                                })
-                              : '—'}
-                            {session.distanceKm ? ` · ${Math.round(session.distanceKm * 10) / 10} km` : ''}
-                          </span>
-                        </span>
-                        <Badge tone="neutral">{durationLabel(session.durationMinutes)}</Badge>
-                      </button>
-                    </li>
-                  )
-                })}
-            </ul>
-          )}
-        </div>
       </section>
-
-      <SessionDetail session={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }

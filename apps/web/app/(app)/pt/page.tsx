@@ -3,6 +3,7 @@
 import { Timestamp, serverTimestamp } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { SessionDetail } from '@/components/session-detail'
 import {
   Button,
   Card,
@@ -71,6 +72,7 @@ export default function TrainingPage() {
 
   const [logOpen, setLogOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [detail, setDetail] = useState<PtSession | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -373,7 +375,7 @@ export default function TrainingPage() {
           <h2 id="sessions" className="text-base font-medium text-ink">
             Sessions
           </h2>
-          <span className="text-sm text-ink-muted">{sorted.length} total</span>
+          <span className="text-sm text-ink-muted">{sorted.length} total · tap for detail</span>
         </div>
 
         {sessions.loading ? (
@@ -403,35 +405,41 @@ export default function TrainingPage() {
               return (
                 <li
                   key={session.id}
-                  className="flex items-center gap-3 rounded-card border border-border bg-surface p-3"
+                  className="flex items-center gap-2 rounded-card border border-border bg-surface p-2"
                 >
-                  <span
-                    aria-hidden
-                    className="h-8 w-1 shrink-0 rounded-pill"
-                    style={{ backgroundColor: `var(--tag-${TYPE_COLOR[session.type]})` }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {session.title ?? TYPE_LABEL[session.type]}
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                      {started ? started.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
-                      {started ? ` · ${timeInput(started)}` : ''}
-                      {session.source === 'strava-csv'
-                        ? ' · Strava'
-                        : session.source === 'garmin-json' || session.source === 'garmin-api'
-                          ? ' · Garmin'
-                          : ''}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm tabular-nums text-ink">{durationLabel(session.durationMinutes)}</p>
-                    {session.distanceKm ? (
-                      <p className="text-xs tabular-nums text-ink-muted">
-                        {Math.round(session.distanceKm * 10) / 10} km
+                  <button
+                    type="button"
+                    onClick={() => setDetail(session)}
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-chip p-1 text-left transition-colors hover:bg-surface-elevated"
+                  >
+                    <span
+                      aria-hidden
+                      className="h-8 w-1 shrink-0 rounded-pill"
+                      style={{ backgroundColor: `var(--tag-${TYPE_COLOR[session.type]})` }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-ink">
+                        {session.title ?? TYPE_LABEL[session.type]}
                       </p>
-                    ) : null}
-                  </div>
+                      <p className="text-xs text-ink-muted">
+                        {started ? started.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+                        {started ? ` · ${timeInput(started)}` : ''}
+                        {session.source === 'strava-csv'
+                          ? ' · Strava'
+                          : session.source === 'garmin-json' || session.source === 'garmin-api'
+                            ? ' · Garmin'
+                            : ''}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm tabular-nums text-ink">{durationLabel(session.durationMinutes)}</p>
+                      {session.distanceKm ? (
+                        <p className="text-xs tabular-nums text-ink-muted">
+                          {Math.round(session.distanceKm * 10) / 10} km
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
                   <Button variant="ghost" size="sm" onClick={() => remove(session)}>
                     Remove
                   </Button>
@@ -636,6 +644,8 @@ export default function TrainingPage() {
           </p>
         </div>
       </Dialog>
+
+      <SessionDetail session={detail} onClose={() => setDetail(null)} />
     </div>
   )
 }
