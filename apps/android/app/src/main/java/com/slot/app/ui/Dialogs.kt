@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -187,12 +188,25 @@ fun AddTaskDialog(
 }
 
 @Composable
-fun AddClassDialog(
+fun AddEntryDialog(
     subjects: List<Subject>,
+    defaultKind: String = "class",
     onDismiss: () -> Unit,
-    onSave: (subjectId: String, dayOfWeek: Int, startMinutes: Int, endMinutes: Int, room: String) -> Unit,
+    onSave: (
+        kind: String,
+        subjectId: String?,
+        title: String?,
+        color: String?,
+        dayOfWeek: Int,
+        startMinutes: Int,
+        endMinutes: Int,
+        room: String,
+    ) -> Unit,
 ) {
+    var kind by remember { mutableStateOf(defaultKind) }
     var subjectId by remember { mutableStateOf(subjects.firstOrNull()?.id ?: "") }
+    var title by remember { mutableStateOf("") }
+    var color by remember { mutableStateOf("indigo") }
     var day by remember { mutableStateOf(1) }
     var startHour by remember { mutableStateOf("09") }
     var startMinute by remember { mutableStateOf("00") }
@@ -201,20 +215,47 @@ fun AddClassDialog(
     var room by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
+    val isClass = kind == "class"
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add class") },
+        title = { Text(if (isClass) "Add class" else "Add event") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
             ) {
-                FieldLabel("Subject")
+                FieldLabel("Type")
                 ChipRow(
-                    values = subjects.map { it.id to it.name },
-                    selected = subjectId,
-                    onSelect = { subjectId = it },
+                    values = listOf("class" to "Class", "event" to "Event"),
+                    selected = kind,
+                    onSelect = { kind = it },
                 )
+
+                if (isClass) {
+                    FieldLabel("Subject")
+                    ChipRow(
+                        values = subjects.map { it.id to it.name },
+                        selected = subjectId,
+                        onSelect = { subjectId = it },
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Title") },
+                        placeholder = { Text("Talk, meeting, church…") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    FieldLabel("Colour")
+                    ChipRow(
+                        values = listOf("indigo", "sky", "violet", "amber", "rose", "emerald")
+                            .map { it to it.replaceFirstChar { c -> c.uppercase() } },
+                        selected = color,
+                        onSelect = { color = it },
+                    )
+                }
 
                 FieldLabel("Day")
                 ChipRow(
@@ -231,7 +272,7 @@ fun AddClassDialog(
                 OutlinedTextField(
                     value = room,
                     onValueChange = { room = it },
-                    label = { Text("Room (optional)") },
+                    label = { Text("Location (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -247,11 +288,22 @@ fun AddClassDialog(
                     val start = parseMinutes(startHour, startMinute)
                     val end = parseMinutes(endHour, endMinute)
                     when {
-                        subjects.isEmpty() -> error = "Create a subject first."
+                        isClass && subjects.isEmpty() -> error = "Create a subject first, or switch to Event."
+                        isClass && subjectId.isBlank() -> error = "Pick a subject."
+                        !isClass && title.isBlank() -> error = "Give the event a title."
                         start == null || end == null -> error = "Enter valid times."
                         end <= start -> error = "End must be after start."
                         else -> {
-                            onSave(subjectId, day, start, end, room.trim())
+                            onSave(
+                                kind,
+                                if (isClass) subjectId else null,
+                                if (isClass) null else title.trim(),
+                                if (isClass) null else color,
+                                day,
+                                start,
+                                end,
+                                room.trim(),
+                            )
                             onDismiss()
                         }
                     }
@@ -429,6 +481,145 @@ fun AddAlarmDialog(
                     }
                 },
             ) { Text("Add") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+fun AddTrainingDialog(
+    onDismiss: () -> Unit,
+    onSave: (
+        type: String,
+        title: String,
+        startedAt: Date,
+        minutes: Int,
+        distanceKm: Double?,
+        notes: String,
+    ) -> Unit,
+) {
+    var type by remember { mutableStateOf("run") }
+    var title by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+    var minutes by remember { mutableStateOf("45") }
+    var km by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        val now = java.time.LocalDateTime.now()
+        date = "%04d-%02d-%02d".format(now.year, now.monthValue, now.dayOfMonth)
+        time = "%02d:%02d".format(now.hour, now.minute)
+    }
+
+    val label = when (type) {
+        "run" -> "Run"
+        "football" -> "Football"
+        "gym" -> "Gym"
+        else -> "Training"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Log training") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
+            ) {
+                FieldLabel("Type")
+                ChipRow(
+                    values = listOf("run" to "Run", "football" to "Football", "gym" to "Gym", "other" to "Other"),
+                    selected = type,
+                    onSelect = { type = it },
+                )
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title (optional)") },
+                    placeholder = { Text(label) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                FieldLabel("Start")
+                OutlinedTextField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = { Text("Date (YYYY-MM-DD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = { time = it },
+                    label = { Text("Time (HH:mm)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                OutlinedTextField(
+                    value = minutes,
+                    onValueChange = { minutes = it.filter(Char::isDigit).take(4) },
+                    label = { Text("Duration (minutes)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (type == "run") {
+                    OutlinedTextField(
+                        value = km,
+                        onValueChange = { km = it },
+                        label = { Text("Distance (km, optional)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val started = runCatching {
+                        java.time.LocalDate.parse(date)
+                            .atTime(java.time.LocalTime.parse(time))
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toInstant()
+                    }.getOrNull()
+                    val duration = minutes.toIntOrNull()
+
+                    when {
+                        started == null -> error = "Use YYYY-MM-DD and HH:mm."
+                        duration == null || duration <= 0 -> error = "Enter a duration."
+                        else -> {
+                            onSave(
+                                type,
+                                title.ifBlank { label },
+                                Date.from(started),
+                                duration.coerceAtMost(1440),
+                                km.toDoubleOrNull()?.takeIf { it > 0 },
+                                notes.trim(),
+                            )
+                            onDismiss()
+                        }
+                    }
+                },
+            ) { Text("Log") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

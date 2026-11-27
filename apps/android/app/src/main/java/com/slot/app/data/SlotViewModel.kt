@@ -57,6 +57,10 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
     val alarms: StateFlow<List<AlarmItem>> = scoped { it.alarms() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val ptSessions: StateFlow<List<PtSession>> = scoped { it.ptSessions() }
+        .map { list -> list.sortedByDescending { it.startedAt?.time ?: 0L } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val profile: StateFlow<Profile> = _user.flatMapLatest { current ->
         val db = database
         if (current == null || db == null) flowOf(Profile.Default)
@@ -85,8 +89,16 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
         status: String,
     ) = write { it.addTask(title, notes, subjectId, dueAt, priority, status) }
 
-    fun addClass(subjectId: String, dayOfWeek: Int, startMinutes: Int, endMinutes: Int, room: String) =
-        write { it.addClass(subjectId, dayOfWeek, startMinutes, endMinutes, room, "") }
+    fun addEntry(
+        kind: String,
+        subjectId: String?,
+        title: String?,
+        color: String?,
+        dayOfWeek: Int,
+        startMinutes: Int,
+        endMinutes: Int,
+        room: String,
+    ) = write { it.addEntry(kind, subjectId, title, color, dayOfWeek, startMinutes, endMinutes, room) }
 
     fun deleteClass(id: String) = write { it.deleteClass(id) }
 
@@ -101,6 +113,17 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logSession(subjectId: String?, minutes: Int, source: String) =
         write { it.logSession(subjectId, minutes, source) }
+
+    fun addPtSession(
+        type: String,
+        title: String,
+        startedAt: Date,
+        minutes: Int,
+        distanceKm: Double?,
+        notes: String,
+    ) = write { it.addPtSession(type, title, startedAt, minutes, distanceKm, notes) }
+
+    fun deletePtSession(id: String) = write { it.deletePtSession(id) }
 
     fun addAlarm(title: String, recurrence: String, dayOfWeek: Int?, timeMinutes: Int, leadMinutes: Int) {
         val zone = profile.value.timezone ?: java.time.ZoneId.systemDefault().id

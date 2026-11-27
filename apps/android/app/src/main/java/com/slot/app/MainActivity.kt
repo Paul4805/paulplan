@@ -60,10 +60,12 @@ import com.slot.app.core.design.Tokens
 import com.slot.app.data.SlotViewModel
 import com.slot.app.ui.FocusScreen
 import com.slot.app.ui.SettingsScreen
+import com.slot.app.ui.StatsScreen
 import com.slot.app.ui.SubjectsScreen
 import com.slot.app.ui.TasksScreen
 import com.slot.app.ui.TimetableScreen
 import com.slot.app.ui.TodayScreen
+import com.slot.app.ui.TrainingScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,8 +96,8 @@ private val DESTINATIONS = listOf(
     Destination("today", "Today"),
     Destination("timetable", "Timetable"),
     Destination("tasks", "Tasks"),
-    Destination("focus", "Focus"),
-    Destination("settings", "Settings"),
+    Destination("training", "Training"),
+    Destination("stats", "Stats"),
 )
 
 @Composable
@@ -156,10 +158,17 @@ private fun SlotRoot(vm: SlotViewModel) {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable("today") {
-                TodayScreen(vm = vm, onOpenSubjects = { nav.navigate("subjects") })
+                TodayScreen(
+                    vm = vm,
+                    onOpenSubjects = { nav.navigate("subjects") },
+                    onOpenFocus = { nav.navigate("focus") },
+                    onOpenSettings = { nav.navigate("settings") },
+                )
             }
             composable("timetable") { TimetableScreen(vm) }
             composable("tasks") { TasksScreen(vm) }
+            composable("training") { TrainingScreen(vm) }
+            composable("stats") { StatsScreen(vm) }
             composable("focus") { FocusScreen(vm) }
             composable("settings") { SettingsScreen(vm) }
             composable("subjects") { SubjectsScreen(vm) }

@@ -2,30 +2,40 @@
 
 import { useEffect, useState } from 'react'
 
-import { Button, Dialog, Field, Input, Select } from '@/components/ui'
+import { Button, Dialog, Field, Input, Segmented, Select, Textarea } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { createDoc, patchDoc, removeDoc, userPath } from '@/lib/db'
 import { DAY_LONG, minutesToTimeInput, timeInputToMinutes } from '@/lib/time'
 import { useToast } from '@/lib/toast'
-import type { ClassSlot, Subject } from '@/lib/types'
+import { TAG_COLORS, type ClassSlot, type Subject, type TagColor } from '@/lib/types'
+
+type Kind = 'class' | 'event'
 
 interface FormState {
+  kind: Kind
   subjectId: string
+  title: string
+  color: TagColor
   dayOfWeek: string
   start: string
   end: string
   room: string
   teacher: string
+  notes: string
 }
 
-function emptyForm(subjects: Subject[]): FormState {
+function emptyForm(subjects: Subject[], kind: Kind, day: number): FormState {
   return {
+    kind,
     subjectId: subjects[0]?.id ?? '',
-    dayOfWeek: '1',
+    title: '',
+    color: 'indigo',
+    dayOfWeek: String(day),
     start: '09:00',
     end: '10:00',
     room: '',
     teacher: '',
+    notes: '',
   }
 }
 
@@ -35,47 +45,61 @@ export function ClassDialog({
   subjects,
   initial,
   defaultDay,
+  defaultKind = 'class',
 }: {
   open: boolean
   onClose: () => void
   subjects: Subject[]
   initial?: ClassSlot | null
   defaultDay?: number
+  defaultKind?: Kind
 }) {
   const { user } = useAuth()
   const toast = useToast()
-  const [form, setForm] = useState<FormState>(() => emptyForm(subjects))
+  const [form, setForm] = useState<FormState>(() => emptyForm(subjects, defaultKind, 1))
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setForm(
-      initial
-        ? {
-            subjectId: initial.subjectId,
-            dayOfWeek: String(initial.dayOfWeek),
-            start: minutesToTimeInput(initial.startMinutes),
-            end: minutesToTimeInput(initial.endMinutes),
-            room: initial.room ?? '',
-            teacher: initial.teacher ?? '',
-          }
-        : { ...emptyForm(subjects), dayOfWeek: String(defaultDay ?? 1) },
-    )
-  }, [open, initial, subjects, defaultDay])
+
+    if (initial) {
+      const kind: Kind = initial.kind ?? (initial.subjectId ? 'class' : 'event')
+      const subject = subjects.find((item) => item.id === initial.subjectId)
+      setForm({
+        kind,
+        subjectId: initial.subjectId ?? subjects[0]?.id ?? '',
+        title: initial.title ?? '',
+        color: initial.colorOverride ?? subject?.color ?? 'indigo',
+        dayOfWeek: String(initial.dayOfWeek),
+        start: minutesToTimeInput(initial.startMinutes),
+        end: minutesToTimeInput(initial.endMinutes),
+        room: initial.room ?? '',
+        teacher: initial.teacher ?? '',
+        notes: initial.notes ?? '',
+      })
+      return
+    }
+
+    setForm({ ...emptyForm(subjects, defaultKind, defaultDay ?? 1) })
+  }, [open, initial, subjects, defaultDay, defaultKind])
 
   if (!user) return null
 
   const path = userPath(user.uid, 'classes')
+  const isClass = form.kind === 'class'
 
   async function save() {
-    if (!form.subjectId) {
-      toast({ title: 'Pick a subject first', tone: 'danger' })
+    if (isClass && !form.subjectId) {
+      toast({ title: 'Pick a subject, or switch to Event', tone: 'danger' })
+      return
+    }
+    if (!isClass && !form.title.trim()) {
+      toast({ title: 'Give the event a title', tone: 'danger' })
       return
     }
 
     const startMinutes = timeInputToMinutes(form.start)
     const endMinutes = timeInputToMinutes(form.end)
-
     if (endMinutes <= startMinutes) {
       toast({ title: 'The end time must be after the start', tone: 'danger' })
       return
@@ -83,23 +107,29 @@ export function ClassDialog({
 
     setBusy(true)
     try {
-      const payload = {
-        subjectId: form.subjectId,
+      const payload: Record<string, unknown> = {
+        kind: form.kind,
         dayOfWeek: Number(form.dayOfWeek),
         startMinutes,
         endMinutes,
         room: form.room.trim(),
-        teacher: form.teacher.trim(),
+        notes: form.notes.trim(),
+        subjectId: isClass ? form.subjectId : null,
+        title: isClass ? null : form.title.trim(),
+        teacher: isClass ? form.teacher.trim() : '',
       }
+
+      // Only events carry their own colour; classes inherit the subject's.
+      if (!isClass) payload.colorOverride = form.color
 
       if (initial) await patchDoc(path, initial.id, payload)
       else await createDoc(path, payload)
 
-      toast({ title: initial ? 'Class updated' : 'Class added', tone: 'success' })
+      toast({ title: initial ? 'Entry updated' : isClass ? 'Class added' : 'Event added', tone: 'success' })
       onClose()
     } catch (cause) {
       console.error(cause)
-      toast({ title: 'Could not save the class', tone: 'danger' })
+      toast({ title: 'Could not save that entry', tone: 'danger' })
     } finally {
       setBusy(false)
     }
@@ -107,15 +137,15 @@ export function ClassDialog({
 
   async function destroy() {
     if (!initial) return
-    if (!window.confirm('Remove this class from the timetable?')) return
+    if (!window.confirm('Remove this from your timetable?')) return
     setBusy(true)
     try {
       await removeDoc(path, initial.id)
-      toast({ title: 'Class removed', tone: 'success' })
+      toast({ title: 'Removed', tone: 'success' })
       onClose()
     } catch (cause) {
       console.error(cause)
-      toast({ title: 'Could not remove the class', tone: 'danger' })
+      toast({ title: 'Could not remove that entry', tone: 'danger' })
     } finally {
       setBusy(false)
     }
@@ -125,8 +155,8 @@ export function ClassDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={initial ? 'Edit class' : 'Add class'}
-      description="Repeats weekly. Times are wall-clock, in your timetable's timezone."
+      title={initial ? 'Edit entry' : isClass ? 'Add class' : 'Add event'}
+      description="Classes link to a subject. Events are everything else: talks, meetings, church, a hangout."
       footer={
         <>
           {initial ? (
@@ -137,78 +167,120 @@ export function ClassDialog({
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={busy || subjects.length === 0}>
+          <Button onClick={save} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
           </Button>
         </>
       }
     >
-      {subjects.length === 0 ? (
-        <p className="rounded-chip border border-border bg-canvas p-3 text-sm text-ink-muted">
-          Create a subject first — classes belong to a subject.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          <Field label="Subject" htmlFor="class-subject">
+      <div className="space-y-3">
+        <Segmented<Kind>
+          label="Entry type"
+          value={form.kind}
+          onChange={(kind) => setForm({ ...form, kind })}
+          options={[
+            { value: 'class', label: 'Class' },
+            { value: 'event', label: 'Event' },
+          ]}
+        />
+
+        {isClass ? (
+          <>
+            {subjects.length === 0 ? (
+              <p className="rounded-chip border border-border bg-canvas p-3 text-sm text-ink-muted">
+                Create a subject first, or switch this entry to Event.
+              </p>
+            ) : (
+              <Field label="Subject" htmlFor="class-subject">
+                <Select
+                  id="class-subject"
+                  value={form.subjectId}
+                  onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
+                >
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+            <Field label="Title" htmlFor="event-title">
+              <Input
+                id="event-title"
+                value={form.title}
+                onChange={(event) => setForm({ ...form, title: event.target.value })}
+                placeholder="Talk with the design team"
+                maxLength={80}
+              />
+            </Field>
+            <Field label="Colour" htmlFor="event-color">
+              <Select
+                id="event-color"
+                value={form.color}
+                onChange={(event) => setForm({ ...form, color: event.target.value as TagColor })}
+              >
+                {TAG_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {color[0]?.toUpperCase()}
+                    {color.slice(1)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Day" htmlFor="class-day">
             <Select
-              id="class-subject"
-              value={form.subjectId}
-              onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
+              id="class-day"
+              value={form.dayOfWeek}
+              onChange={(event) => setForm({ ...form, dayOfWeek: event.target.value })}
             >
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
+              {DAY_LONG.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Day" htmlFor="class-day">
-              <Select
-                id="class-day"
-                value={form.dayOfWeek}
-                onChange={(event) => setForm({ ...form, dayOfWeek: event.target.value })}
-              >
-                {DAY_LONG.map((label, index) => (
-                  <option key={label} value={index + 1}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+          <Field label="Location" htmlFor="class-room">
+            <Input
+              id="class-room"
+              value={form.room}
+              onChange={(event) => setForm({ ...form, room: event.target.value })}
+              placeholder={isClass ? 'LT-4' : 'Library, Café, Online'}
+            />
+          </Field>
+        </div>
 
-            <Field label="Room" htmlFor="class-room">
-              <Input
-                id="class-room"
-                value={form.room}
-                onChange={(event) => setForm({ ...form, room: event.target.value })}
-                placeholder="LT-4"
-              />
-            </Field>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Start" htmlFor="class-start">
+            <Input
+              id="class-start"
+              type="time"
+              required
+              value={form.start}
+              onChange={(event) => setForm({ ...form, start: event.target.value })}
+            />
+          </Field>
+          <Field label="End" htmlFor="class-end">
+            <Input
+              id="class-end"
+              type="time"
+              required
+              value={form.end}
+              onChange={(event) => setForm({ ...form, end: event.target.value })}
+            />
+          </Field>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start" htmlFor="class-start">
-              <Input
-                id="class-start"
-                type="time"
-                required
-                value={form.start}
-                onChange={(event) => setForm({ ...form, start: event.target.value })}
-              />
-            </Field>
-            <Field label="End" htmlFor="class-end">
-              <Input
-                id="class-end"
-                type="time"
-                required
-                value={form.end}
-                onChange={(event) => setForm({ ...form, end: event.target.value })}
-              />
-            </Field>
-          </div>
-
+        {isClass ? (
           <Field label="Teacher" htmlFor="class-teacher">
             <Input
               id="class-teacher"
@@ -217,8 +289,18 @@ export function ClassDialog({
               placeholder="Dr. Rao"
             />
           </Field>
-        </div>
-      )}
+        ) : null}
+
+        <Field label="Notes" htmlFor="class-notes">
+          <Textarea
+            id="class-notes"
+            value={form.notes}
+            onChange={(event) => setForm({ ...form, notes: event.target.value })}
+            placeholder={isClass ? 'Optional' : 'Who you are meeting, what to bring…'}
+            rows={2}
+          />
+        </Field>
+      </div>
     </Dialog>
   )
 }

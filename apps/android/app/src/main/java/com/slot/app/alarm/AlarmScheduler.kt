@@ -116,6 +116,14 @@ object AlarmSnapshot {
     private const val PREFS = "slot_alarm_snapshot"
     private const val KEY = "events"
 
+    /**
+     * Device-protected storage, not credential-encrypted: the boot receiver runs
+     * before the first unlock, when normal SharedPreferences are unreadable.
+     */
+    private fun prefs(context: Context) =
+        context.createDeviceProtectedStorageContext()
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
     fun save(context: Context, events: List<ScheduledAlarm>) {
         val array = JSONArray()
         for (event in events) {
@@ -131,15 +139,11 @@ object AlarmSnapshot {
                 },
             )
         }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY, array.toString())
-            .apply()
+        prefs(context).edit().putString(KEY, array.toString()).apply()
     }
 
     fun load(context: Context): List<ScheduledAlarm> = runCatching {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY, null) ?: return emptyList()
+        val raw = prefs(context).getString(KEY, null) ?: return emptyList()
 
         val array = JSONArray(raw)
         (0 until array.length()).mapNotNull { index ->
@@ -157,7 +161,7 @@ object AlarmSnapshot {
     }.getOrDefault(emptyList())
 
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+        prefs(context).edit().remove(KEY).apply()
     }
 }
 
@@ -211,5 +215,12 @@ object NotificationChannels {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         val manager = context.getSystemService(AlarmManager::class.java) ?: return false
         return manager.canScheduleExactAlarms()
+    }
+
+    /** Android 14+ gates full-screen intents behind a special app access. */
+    fun canUseFullScreen(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 34) return true
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+        return manager.canUseFullScreenIntent()
     }
 }

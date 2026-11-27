@@ -35,12 +35,19 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 class AlarmActivity : ComponentActivity() {
+    private val alarmPlayer by lazy { AlarmPlayer(this) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        runCatching {
+            getSystemService(android.app.KeyguardManager::class.java)?.requestDismissKeyguard(this, null)
+        }
+        alarmPlayer.start()
 
         val eventId = intent.getStringExtra(AlarmScheduler.EXTRA_EVENT_ID)
         val alarmId = intent.getStringExtra(AlarmScheduler.EXTRA_ALARM_ID).orEmpty()
@@ -76,6 +83,7 @@ class AlarmActivity : ComponentActivity() {
         state: String,
         snoozeUntil: Date?,
     ) {
+        alarmPlayer.stop()
         getSystemService(NotificationManager::class.java)?.cancel(eventId.hashCode())
 
         if (snoozeUntil != null) {
@@ -105,6 +113,11 @@ class AlarmActivity : ComponentActivity() {
             }
             finish()
         }
+    }
+
+    override fun onDestroy() {
+        alarmPlayer.stop()
+        super.onDestroy()
     }
 }
 

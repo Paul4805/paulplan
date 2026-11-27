@@ -137,6 +137,27 @@ describe('write validation', () => {
     await assertSucceeds(setDoc(doc(asAlice(), path('classes/c1')), classData()))
   })
 
+  it('accepts free-standing events with a title and colour', async () => {
+    const event = {
+      kind: 'event',
+      title: 'Study group',
+      colorOverride: 'violet',
+      dayOfWeek: 4,
+      startMinutes: 1080,
+      endMinutes: 1140,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+
+    await assertSucceeds(setDoc(doc(asAlice(), path('classes/e1')), event))
+    await assertFails(
+      setDoc(doc(asAlice(), path('classes/e1')), { ...event, colorOverride: 'magenta' }),
+    )
+    await assertFails(
+      setDoc(doc(asAlice(), path('classes/e1')), { ...event, title: '' }),
+    )
+  })
+
   it('rejects invalid days of week', async () => {
     await assertFails(
       setDoc(doc(asAlice(), path('classes/c1')), classData({ dayOfWeek: 8 })),
@@ -162,8 +183,7 @@ describe('write validation', () => {
     )
   })
 
-  it('rejects alarms without a timezone or with a bad lead time', async () => {
-    const alarm = {
+  it('rejects alarms without a timezone or with a bad lead time', async () => {    const alarm = {
       title: 'Wake up',
       kind: 'custom',
       recurrence: 'daily',
@@ -220,6 +240,42 @@ describe('alarm state', () => {
     await assertFails(
       setDoc(doc(asBob(), path('alarmState/a1_1700000000')), alarmStateData()),
     )
+  })
+})
+
+describe('physical training', () => {
+  const sessionData = (overrides: Record<string, unknown> = {}) => ({
+    type: 'run',
+    source: 'manual',
+    startedAt: serverTimestamp(),
+    durationMinutes: 42,
+    distanceKm: 7.5,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...overrides,
+  })
+
+  it('accepts runs and gym sessions', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), path('ptSessions/p1')), sessionData()))
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), path('ptSessions/p2')),
+        sessionData({ type: 'gym', distanceKm: null }),
+      ),
+    )
+  })
+
+  it('rejects unknown types and impossible durations', async () => {
+    await assertFails(
+      setDoc(doc(asAlice(), path('ptSessions/p1')), sessionData({ type: 'swim' })),
+    )
+    await assertFails(
+      setDoc(doc(asAlice(), path('ptSessions/p1')), sessionData({ durationMinutes: 5000 })),
+    )
+  })
+
+  it('is private to its owner', async () => {
+    await assertFails(setDoc(doc(asBob(), path('ptSessions/p1')), sessionData()))
   })
 })
 

@@ -29,6 +29,7 @@ users/{uid}/classes/{classId}            weekly timetable slots
 users/{uid}/terms/{termId}               optional campus timezone + term bounds
 users/{uid}/tasks/{taskId}
 users/{uid}/studySessions/{sessionId}
+users/{uid}/ptSessions/{sessionId}
 users/{uid}/alarms/{alarmId}             alarm definitions
 users/{uid}/alarmState/{eventId}         sparse snooze/dismiss actions
 ```
@@ -160,6 +161,27 @@ Resolution order for a class's timezone: `terms/{termId}.timezone` → `meta/pro
 ```
 
 Sessions are append-only and immutable in practice; editing a past session rewrites `durationMinutes`. Progress and weekly hours are derived by summing these documents, never stored.
+
+### `ptSessions` (physical training)
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `type` | `'run' \| 'football' \| 'gym' \| 'other'` | yes |
+| `title` | string | no (defaults to the type) |
+| `startedAt` | timestamp (UTC) | yes |
+| `durationMinutes` | int 0–1440 | yes |
+| `distanceKm` | number ≥ 0 \| null | no (runs only) |
+| `source` | `'manual' \| 'strava-csv'` | yes |
+| `stravaId` | string | no; dedupe key for imports |
+| `notes` | string | no |
+
+```json
+{ "type": "run", "title": "Morning run", "startedAt": "<ts>",
+  "durationMinutes": 42, "distanceKm": 7.4, "source": "strava-csv",
+  "stravaId": "111", "createdAt": "<ts>", "updatedAt": "<ts>" }
+```
+
+`stravaId` is unique per user in practice: the importer skips ids that already exist. There is no API sync because the OAuth token exchange needs a client secret and this app has no server; the CSV archive import is the secret-free path.
 
 ### `alarms` (definitions)
 

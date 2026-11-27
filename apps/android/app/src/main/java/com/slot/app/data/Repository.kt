@@ -40,6 +40,7 @@ class SlotRepository(
     fun classes(): Flow<List<ClassSlot>> = collectionFlow("classes") { it.toClassSlot() }
     fun tasks(): Flow<List<TaskItem>> = collectionFlow("tasks") { it.toTask() }
     fun sessions(): Flow<List<StudySession>> = collectionFlow("studySessions") { it.toSession() }
+    fun ptSessions(): Flow<List<PtSession>> = collectionFlow("ptSessions") { it.toPtSession() }
     fun alarms(): Flow<List<AlarmItem>> = collectionFlow("alarms") { it.toAlarm() }
 
     fun profile(): Flow<Profile> = callbackFlow {
@@ -116,19 +117,30 @@ class SlotRepository(
         col("subjects").document(id).delete().await()
     }
 
-    suspend fun addClass(subjectId: String, dayOfWeek: Int, startMinutes: Int, endMinutes: Int, room: String, teacher: String) {
-        col("classes").add(
-            mapOf(
-                "subjectId" to subjectId,
-                "dayOfWeek" to dayOfWeek.toLong(),
-                "startMinutes" to startMinutes.toLong(),
-                "endMinutes" to endMinutes.toLong(),
-                "room" to room,
-                "teacher" to teacher,
-                "createdAt" to FieldValue.serverTimestamp(),
-                "updatedAt" to FieldValue.serverTimestamp(),
-            ),
-        ).await()
+    suspend fun addEntry(
+        kind: String,
+        subjectId: String?,
+        title: String?,
+        color: String?,
+        dayOfWeek: Int,
+        startMinutes: Int,
+        endMinutes: Int,
+        room: String,
+    ) {
+        val payload = mutableMapOf<String, Any?>(
+            "kind" to kind,
+            "subjectId" to subjectId,
+            "title" to title,
+            "dayOfWeek" to dayOfWeek.toLong(),
+            "startMinutes" to startMinutes.toLong(),
+            "endMinutes" to endMinutes.toLong(),
+            "room" to room,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp(),
+        )
+        if (!color.isNullOrBlank()) payload["colorOverride"] = color
+
+        col("classes").add(payload).await()
     }
 
     suspend fun deleteClass(id: String) {
@@ -201,8 +213,7 @@ class SlotRepository(
         col("alarms").document(id).delete().await()
     }
 
-    suspend fun logSession(subjectId: String?, minutes: Int, source: String) {
-        val ended = Date()
+    suspend fun logSession(subjectId: String?, minutes: Int, source: String) {        val ended = Date()
         val started = Date(ended.time - minutes * 60_000L)
         col("studySessions").add(
             mapOf(
@@ -216,6 +227,33 @@ class SlotRepository(
                 "updatedAt" to FieldValue.serverTimestamp(),
             ),
         ).await()
+    }
+
+    suspend fun addPtSession(
+        type: String,
+        title: String,
+        startedAt: Date,
+        minutes: Int,
+        distanceKm: Double?,
+        notes: String,
+    ) {
+        val payload = mutableMapOf<String, Any?>(
+            "type" to type,
+            "title" to title,
+            "startedAt" to Timestamp(startedAt),
+            "durationMinutes" to minutes.toLong(),
+            "source" to "manual",
+            "notes" to notes,
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp(),
+        )
+        if (distanceKm != null) payload["distanceKm"] = distanceKm
+
+        col("ptSessions").add(payload).await()
+    }
+
+    suspend fun deletePtSession(id: String) {
+        col("ptSessions").document(id).delete().await()
     }
 
     suspend fun cleanupAlarmStates() {

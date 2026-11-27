@@ -14,9 +14,17 @@ const NAV = [
   { href: '/tasks', label: 'Tasks' },
   { href: '/subjects', label: 'Subjects' },
   { href: '/focus', label: 'Focus' },
+  { href: '/pt', label: 'Training' },
+  { href: '/stats', label: 'Stats' },
 ] as const
 
-const MOBILE_NAV = NAV.filter((item) => item.href !== '/subjects')
+const MOBILE_NAV = [
+  { href: '/', label: 'Today' },
+  { href: '/timetable', label: 'Timetable' },
+  { href: '/tasks', label: 'Tasks' },
+  { href: '/pt', label: 'Training' },
+  { href: '/stats', label: 'Stats' },
+] as const
 
 function currentPath(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, '')
@@ -43,6 +51,9 @@ function SettingsIcon() {
 function ServiceWorker() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
+    // A cache-first SW serves stale chunks against the dev server. Only take
+    // over in production, where the exported build is immutable per deploy.
+    if (process.env.NODE_ENV !== 'production') return
     navigator.serviceWorker.register('/sw.js').catch((error) => {
       console.error('Service worker registration failed', error)
     })

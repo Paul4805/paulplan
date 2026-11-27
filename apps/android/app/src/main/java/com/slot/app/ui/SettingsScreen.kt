@@ -220,6 +220,19 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     },
                 )
                 PermissionRow(
+                    label = "Full-screen alarms",
+                    granted = NotificationChannels.canUseFullScreen(context),
+                    action = "Allow",
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            context.startSafely(
+                                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                                    .setData(Uri.parse("package:${context.packageName}")),
+                            )
+                        }
+                    },
+                )
+                PermissionRow(
                     label = "Battery unrestricted",
                     granted = battery,
                     action = "Allow",

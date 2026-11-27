@@ -83,7 +83,7 @@ fun SubjectsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             ) {
                 TextButton(onClick = { selected = null }) { Text("← Subjects") }
                 Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                    OutlinedButton(onClick = { classOpen = true }) { Text("Class") }
+                    OutlinedButton(onClick = { classOpen = true }) { Text("Add") }
                     Button(onClick = { vm.logSession(chosen.id, 30, "manual") }) { Text("Log 30 min") }
                 }
             }
@@ -146,11 +146,12 @@ fun SubjectsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         }
 
         if (classOpen) {
-            AddClassDialog(
+            AddEntryDialog(
                 subjects = listOf(chosen),
+                defaultKind = "class",
                 onDismiss = { classOpen = false },
-                onSave = { subjectId, day, start, end, room ->
-                    vm.addClass(subjectId, day, start, end, room)
+                onSave = { kind, subjectId, title, color, day, start, end, room ->
+                    vm.addEntry(kind, subjectId, title, color, day, start, end, room)
                 },
             )
         }

@@ -17,7 +17,9 @@ data class Subject(
 
 data class ClassSlot(
     val id: String,
-    val subjectId: String,
+    val subjectId: String? = null,
+    val title: String? = null,
+    val color: String? = null,
     val dayOfWeek: Int,
     val startMinutes: Int,
     val endMinutes: Int,
@@ -43,6 +45,17 @@ data class StudySession(
     val endedAt: Date? = null,
     val durationMinutes: Int = 0,
     val source: String = "manual",
+)
+
+data class PtSession(
+    val id: String,
+    val type: String = "other",
+    val title: String? = null,
+    val startedAt: Date? = null,
+    val durationMinutes: Int = 0,
+    val distanceKm: Double? = null,
+    val source: String = "manual",
+    val notes: String? = null,
 )
 
 data class AlarmItem(
@@ -86,7 +99,9 @@ fun DocumentSnapshot.toSubject(): Subject = Subject(
 
 fun DocumentSnapshot.toClassSlot(): ClassSlot = ClassSlot(
     id = id,
-    subjectId = getString("subjectId") ?: "",
+    subjectId = getString("subjectId"),
+    title = getString("title"),
+    color = getString("colorOverride"),
     dayOfWeek = (getLong("dayOfWeek") ?: 1L).toInt(),
     startMinutes = (getLong("startMinutes") ?: 540L).toInt(),
     endMinutes = (getLong("endMinutes") ?: 630L).toInt(),
@@ -112,6 +127,17 @@ fun DocumentSnapshot.toSession(): StudySession = StudySession(
     endedAt = getTimestamp("endedAt")?.toDate(),
     durationMinutes = (getLong("durationMinutes") ?: 0L).toInt(),
     source = getString("source") ?: "manual",
+)
+
+fun DocumentSnapshot.toPtSession(): PtSession = PtSession(
+    id = id,
+    type = getString("type") ?: "other",
+    title = getString("title"),
+    startedAt = getTimestamp("startedAt")?.toDate(),
+    durationMinutes = (getLong("durationMinutes") ?: 0L).toInt(),
+    distanceKm = getDouble("distanceKm"),
+    source = getString("source") ?: "manual",
+    notes = getString("notes"),
 )
 
 fun DocumentSnapshot.toAlarm(): AlarmItem = AlarmItem(

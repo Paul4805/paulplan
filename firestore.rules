@@ -43,8 +43,6 @@ service cloud.firestore {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid)
           && touched()
-          && request.resource.data.subjectId is string
-          && request.resource.data.subjectId.size() > 0
           && request.resource.data.dayOfWeek is int
           && request.resource.data.dayOfWeek >= 1
           && request.resource.data.dayOfWeek <= 7
@@ -53,7 +51,19 @@ service cloud.firestore {
           && request.resource.data.startMinutes < 1440
           && request.resource.data.endMinutes is int
           && request.resource.data.endMinutes > request.resource.data.startMinutes
-          && request.resource.data.endMinutes <= 1440;
+          && request.resource.data.endMinutes <= 1440
+          // A timetable entry is either a class (linked to a subject) or a
+          // free-standing event (talks, meetings, church…) with a title.
+          && (
+               (request.resource.data.subjectId is string && request.resource.data.subjectId.size() > 0)
+               || (request.resource.data.title is string
+                   && request.resource.data.title.size() > 0
+                   && request.resource.data.title.size() <= 80)
+             )
+          && (
+               !('colorOverride' in request.resource.data)
+               || request.resource.data.colorOverride in ['indigo', 'sky', 'violet', 'amber', 'rose', 'emerald']
+             );
       }
 
       match /tasks/{docId} {
@@ -94,7 +104,24 @@ service cloud.firestore {
           && request.resource.data.timezone is string;
       }
 
-      // Sparse user actions on fired alarms. Created only when a user snoozes or
+      // Physical training: runs (manual or imported from a Strava export),
+      // football, gym, anything else that is not academic study.
+      match /ptSessions/{docId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && touched()
+          && request.resource.data.type in ['run', 'football', 'gym', 'other']
+          && request.resource.data.source in ['manual', 'strava-csv']
+          && request.resource.data.startedAt is timestamp
+          && request.resource.data.durationMinutes is int
+          && request.resource.data.durationMinutes >= 0
+          && request.resource.data.durationMinutes <= 1440
+          && (
+               !('distanceKm' in request.resource.data)
+               || request.resource.data.distanceKm == null
+               || (request.resource.data.distanceKm is number && request.resource.data.distanceKm >= 0)
+             );
+      }      // Sparse user actions on fired alarms. Created only when a user snoozes or
       // dismisses; never pre-materialised (there are no Cloud Functions).
       match /alarmState/{eventId} {
         allow read, delete: if isOwner(uid);

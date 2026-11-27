@@ -54,6 +54,7 @@ export default function TodayPage() {
   )
 
   const [classOpen, setClassOpen] = useState(false)
+  const [entryKind, setEntryKind] = useState<'class' | 'event'>('class')
   const [taskOpen, setTaskOpen] = useState(false)
 
   const today = now
@@ -64,6 +65,16 @@ export default function TodayPage() {
     () => new Map(subjects.items.map((subject) => [subject.id, subject])),
     [subjects.items],
   )
+
+  const entryLabel = (slot: ClassSlot): string => {
+    const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
+    return subject?.name ?? slot.title ?? 'Entry'
+  }
+
+  const entryColor = (slot: ClassSlot): string => {
+    const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
+    return slot.colorOverride ?? subject?.color ?? 'indigo'
+  }
 
   const todaysClasses = useMemo(
     () =>
@@ -136,11 +147,27 @@ export default function TodayPage() {
         })}
         actions={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setTaskOpen(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setTaskOpen(true)}>
               New task
             </Button>
-            <Button size="sm" onClick={() => setClassOpen(true)}>
-              Add class
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setEntryKind('class')
+                setClassOpen(true)
+              }}
+            >
+              Class
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEntryKind('event')
+                setClassOpen(true)
+              }}
+            >
+              Event
             </Button>
           </>
         }
@@ -159,7 +186,7 @@ export default function TodayPage() {
           {currentClass ? (
             <>
               <p className="mt-2 truncate text-base font-medium text-ink">
-                {subjectById.get(currentClass.subjectId)?.name ?? 'Class'}
+                {entryLabel(currentClass)}
               </p>
               <p className="text-sm text-ink-muted">
                 until {minutesToLabel(currentClass.endMinutes)}
@@ -168,7 +195,7 @@ export default function TodayPage() {
           ) : nextClass ? (
             <>
               <p className="mt-2 truncate text-base font-medium text-ink">
-                {subjectById.get(nextClass.subjectId)?.name ?? 'Class'}
+                {entryLabel(nextClass)}
               </p>
               <p className="text-sm text-ink-muted">
                 in {nextClass.startMinutes - todayMinutes} min ·{' '}
@@ -219,7 +246,7 @@ export default function TodayPage() {
         <section aria-labelledby="today-classes">
           <div className="mb-3 flex items-center justify-between">
             <h2 id="today-classes" className="text-base font-medium text-ink">
-              Today&apos;s classes
+              Today&apos;s schedule
             </h2>
             <Link href="/timetable" className="text-sm text-ink-muted hover:text-ink">
               Week view
@@ -233,18 +260,35 @@ export default function TodayPage() {
             </div>
           ) : todaysClasses.length === 0 ? (
             <EmptyState
-              title="No classes today"
-              description="Add your weekly timetable once and it will show up here every week."
+              title="Nothing scheduled today"
+              description="Add your weekly classes once, or drop in one-off events like talks and meetings."
               action={
-                <Button size="sm" variant="secondary" onClick={() => setClassOpen(true)}>
-                  Add class
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setEntryKind('event')
+                      setClassOpen(true)
+                    }}
+                  >
+                    Add event
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEntryKind('class')
+                      setClassOpen(true)
+                    }}
+                  >
+                    Add class
+                  </Button>
+                </div>
               }
             />
           ) : (
             <ul className="space-y-2">
               {todaysClasses.map((slot) => {
-                const subject = subjectById.get(slot.subjectId)
                 const active =
                   todayMinutes >= slot.startMinutes && todayMinutes < slot.endMinutes
                 return (
@@ -255,12 +299,10 @@ export default function TodayPage() {
                     <span
                       aria-hidden
                       className="h-8 w-1 rounded-pill"
-                      style={{ backgroundColor: `var(--tag-${subject?.color ?? 'indigo'})` }}
+                      style={{ backgroundColor: `var(--tag-${entryColor(slot)})` }}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink">
-                        {subject?.name ?? 'Unknown subject'}
-                      </p>
+                      <p className="truncate text-sm font-medium text-ink">{entryLabel(slot)}</p>
                       <p className="text-xs text-ink-muted">
                         {minutesToLabel(slot.startMinutes)}–{minutesToLabel(slot.endMinutes)}
                         {slot.room ? ` · ${slot.room}` : ''}
@@ -403,11 +445,30 @@ export default function TodayPage() {
         )}
       </section>
 
+      <section className="mt-8" aria-labelledby="quick-links">
+        <h2 id="quick-links" className="sr-only">
+          Quick links
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/focus">
+            <Button variant="secondary" size="sm">
+              Start a focus session
+            </Button>
+          </Link>
+          <Link href="/subjects">
+            <Button variant="secondary" size="sm">
+              Subjects &amp; progress
+            </Button>
+          </Link>
+        </div>
+      </section>
+
       <ClassDialog
         open={classOpen}
         onClose={() => setClassOpen(false)}
         subjects={subjects.items}
         defaultDay={weekday}
+        defaultKind={entryKind}
       />
       <TaskDialog
         open={taskOpen}

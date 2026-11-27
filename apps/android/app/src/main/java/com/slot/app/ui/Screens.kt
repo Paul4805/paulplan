@@ -57,6 +57,8 @@ private fun sumMinutes(sessions: List<StudySession>): Int =
 fun TodayScreen(
     vm: SlotViewModel,
     onOpenSubjects: () -> Unit,
+    onOpenFocus: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val subjects by vm.subjects.collectAsStateWithLifecycle()
@@ -65,6 +67,10 @@ fun TodayScreen(
     val sessions by vm.sessions.collectAsStateWithLifecycle()
 
     val subjectById = subjects.associateBy { it.id }
+
+    fun entryLabel(slot: ClassSlot): String =
+        slot.subjectId?.let { subjectById[it]?.name } ?: slot.title ?: "Entry"
+
     val now = LocalTime.now()
     val nowMinutes = now.hour * 60 + now.minute
     val today = LocalDate.now().dayOfWeek.value
@@ -109,15 +115,15 @@ fun TodayScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
                 OutlinedButton(onClick = { taskOpen = true }) { Text("Task") }
-                Button(onClick = { classOpen = true }) { Text("Class") }
+                Button(onClick = { classOpen = true }) { Text("Add") }
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
             StatCard(
                 label = "Now",
-                value = current?.let { subjectById[it.subjectId]?.name ?: "Class" }
-                    ?: next?.let { subjectById[it.subjectId]?.name ?: "Class" }
+                value = current?.let { entryLabel(it) }
+                    ?: next?.let { entryLabel(it) }
                     ?: "Free",
                 hint = current?.let { "until ${minutesLabel(it.endMinutes)}" }
                     ?: next?.let { "in ${it.startMinutes - minuteOfDay} min" }
@@ -149,12 +155,11 @@ fun TodayScreen(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        SectionTitle("Today's classes")
+        SectionTitle("Today's schedule")
         if (todays.isEmpty()) {
-            EmptyHint("No classes today", "Add your weekly timetable and it repeats on its own.")
+            EmptyHint("Nothing scheduled", "Add weekly classes, or drop in a one-off event.")
         } else {
             todays.forEach { slot ->
-                val subject = subjectById[slot.subjectId]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -167,7 +172,7 @@ fun TodayScreen(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = subject?.name ?: "Class",
+                            text = entryLabel(slot),
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -210,8 +215,13 @@ fun TodayScreen(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        OutlinedButton(onClick = onOpenSubjects, modifier = Modifier.fillMaxWidth()) {
-            Text("Subjects & progress")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
+        ) {
+            OutlinedButton(onClick = onOpenFocus, modifier = Modifier.weight(1f)) { Text("Focus") }
+            OutlinedButton(onClick = onOpenSubjects, modifier = Modifier.weight(1f)) { Text("Subjects") }
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("Settings") }
         }
 
         Text(
@@ -232,11 +242,11 @@ fun TodayScreen(
     }
 
     if (classOpen) {
-        AddClassDialog(
+        AddEntryDialog(
             subjects = subjects,
             onDismiss = { classOpen = false },
-            onSave = { subjectId, day, start, end, room ->
-                vm.addClass(subjectId, day, start, end, room)
+            onSave = { kind, subjectId, title, color, day, start, end, room ->
+                vm.addEntry(kind, subjectId, title, color, day, start, end, room)
             },
         )
     }
@@ -252,6 +262,9 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     var classOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ClassSlot?>(null) }
     var newSubjectOpen by remember { mutableStateOf(false) }
+
+    fun entryLabel(slot: ClassSlot): String =
+        slot.subjectId?.let { subjectById[it]?.name } ?: slot.title ?: "Entry"
 
     val slots = classes.filter { it.dayOfWeek == selectedDay }.sortedBy { it.startMinutes }
 
@@ -270,7 +283,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             Text("Timetable", style = MaterialTheme.typography.headlineSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
                 OutlinedButton(onClick = { newSubjectOpen = true }) { Text("Subject") }
-                Button(onClick = { classOpen = true }) { Text("Class") }
+                Button(onClick = { classOpen = true }) { Text("Add") }
             }
         }
 
@@ -291,7 +304,8 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             EmptyHint("Nothing on ${dayLabel(selectedDay)}", "Add a class, or pick another day.")
         } else {
             slots.forEach { slot ->
-                val subject = subjectById[slot.subjectId]
+                val subject = slot.subjectId?.let { subjectById[it] }
+                val dotColor = slot.color?.let { tagColor(it) } ?: subject?.let { tagColor(it.color) }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -299,15 +313,15 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                            if (subject != null) {
+                            if (dotColor != null) {
                                 Text(
                                     "●",
-                                    color = tagColor(subject.color),
+                                    color = dotColor,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
                             Text(
-                                text = subject?.name ?: "Class",
+                                text = entryLabel(slot),
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                         }
@@ -336,11 +350,11 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     }
 
     if (classOpen) {
-        AddClassDialog(
+        AddEntryDialog(
             subjects = subjects,
             onDismiss = { classOpen = false },
-            onSave = { subjectId, day, start, end, room ->
-                vm.addClass(subjectId, day, start, end, room)
+            onSave = { kind, subjectId, title, color, day, start, end, room ->
+                vm.addEntry(kind, subjectId, title, color, day, start, end, room)
                 selectedDay = day
             },
         )
@@ -358,7 +372,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     deleteTarget?.let { slot ->
         ConfirmDeleteDialog(
             title = "Remove class?",
-            body = "${subjectById[slot.subjectId]?.name ?: "This class"} on ${dayLabel(slot.dayOfWeek)} at ${minutesLabel(slot.startMinutes)}.",
+            body = "${entryLabel(slot)} on ${dayLabel(slot.dayOfWeek)} at ${minutesLabel(slot.startMinutes)}.",
             onDismiss = { deleteTarget = null },
             onConfirm = { vm.deleteClass(slot.id) },
         )

@@ -39,9 +39,10 @@ export default function TimetablePage() {
   const [view, setView] = useState<'week' | 'day'>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDay, setSelectedDay] = useState(() => dayOfWeek(new Date()) - 1)
-  const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null }>({
+  const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null; kind: 'class' | 'event' }>({
     open: false,
     slot: null,
+    kind: 'class',
   })
 
   useEffect(() => {
@@ -90,9 +91,18 @@ export default function TimetablePage() {
         title="Timetable"
         description="Your week repeats on its own. Times are wall-clock in your timetable timezone."
         actions={
-          <Button size="sm" onClick={() => setDialog({ open: true, slot: null })}>
-            Add class
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialog({ open: true, slot: null, kind: 'event' })}
+            >
+              Add event
+            </Button>
+            <Button size="sm" onClick={() => setDialog({ open: true, slot: null, kind: 'class' })}>
+              Add class
+            </Button>
+          </>
         }
       />
 
@@ -148,9 +158,18 @@ export default function TimetablePage() {
           title="Your week is empty"
           description="Add subjects first, then drop classes into the week. Everything repeats automatically."
           action={
-            <Button size="sm" onClick={() => setDialog({ open: true, slot: null })}>
-              Add class
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setDialog({ open: true, slot: null, kind: 'event' })}
+              >
+                Add event
+              </Button>
+              <Button size="sm" onClick={() => setDialog({ open: true, slot: null, kind: 'class' })}>
+                Add class
+              </Button>
+            </div>
           }
         />
       ) : view === 'week' ? (
@@ -201,8 +220,9 @@ export default function TimetablePage() {
               ))}
 
               {classes.items.map((slot) => {
-                const subject = subjectById.get(slot.subjectId)
+                const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
                 const color = slot.colorOverride ?? subject?.color ?? 'indigo'
+                const label = subject?.name ?? slot.title ?? 'Entry'
                 const fromRow = clamp(
                   Math.floor((slot.startMinutes - start) / ROW_MINUTES),
                   0,
@@ -218,7 +238,7 @@ export default function TimetablePage() {
                   <button
                     key={slot.id}
                     type="button"
-                    onClick={() => setDialog({ open: true, slot })}
+                    onClick={() => setDialog({ open: true, slot, kind: slot.kind ?? 'class' })}
                     className="z-10 m-0.5 overflow-hidden rounded-chip border p-1.5 text-left transition-transform duration-fast hover:-translate-y-px"
                     style={{
                       gridColumn: slot.dayOfWeek + 1,
@@ -232,7 +252,7 @@ export default function TimetablePage() {
                       style={tagBar(color)}
                     />
                     <span className="block truncate text-[11px] font-medium leading-tight text-ink">
-                      {subject?.name ?? 'Class'}
+                      {label}
                     </span>
                     <span className="block truncate text-[10px] leading-tight text-ink-muted">
                       {minutesToLabel(slot.startMinutes)}
@@ -277,13 +297,14 @@ export default function TimetablePage() {
             ) : (
               <ul className="space-y-2">
                 {selectedSlots.map((slot) => {
-                  const subject = subjectById.get(slot.subjectId)
+                  const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
                   const color = slot.colorOverride ?? subject?.color ?? 'indigo'
+                  const label = subject?.name ?? slot.title ?? 'Entry'
                   return (
                     <li key={slot.id}>
                       <button
                         type="button"
-                        onClick={() => setDialog({ open: true, slot })}
+                        onClick={() => setDialog({ open: true, slot, kind: slot.kind ?? 'class' })}
                         className="flex w-full items-center gap-3 rounded-chip border p-3 text-left"
                         style={tagTint(color)}
                       >
@@ -294,7 +315,7 @@ export default function TimetablePage() {
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-ink">
-                            {subject?.name ?? 'Class'}
+                            {label}
                           </span>
                           <span className="block text-xs text-ink-muted">
                             {minutesToLabel(slot.startMinutes)}–{minutesToLabel(slot.endMinutes)}
@@ -318,10 +339,11 @@ export default function TimetablePage() {
 
       <ClassDialog
         open={dialog.open}
-        onClose={() => setDialog({ open: false, slot: null })}
+        onClose={() => setDialog({ open: false, slot: null, kind: 'class' })}
         subjects={subjects.items}
         initial={dialog.slot}
         defaultDay={selectedDay + 1}
+        defaultKind={dialog.kind}
       />
     </div>
   )

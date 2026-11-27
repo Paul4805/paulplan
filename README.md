@@ -9,10 +9,10 @@ A minimal college schedule manager. Weekly timetable, tasks, study progress, and
 | Check | Command | Result |
 | --- | --- | --- |
 | Design tokens generate | `pnpm tokens` | 3 artefacts, web + Kotlin |
-| Web unit tests (time/occurrence logic) | `pnpm test` | 10 passed |
+| Web unit tests (time, alarm occurrences, Strava CSV) | `pnpm test` | 14 passed |
 | Web typecheck + lint | `pnpm typecheck`, `pnpm lint` | clean |
-| Web static export | `pnpm build` | 9 routes exported to `apps/web/out` |
-| Firestore rules | `pnpm test:rules` | 19 passed against the emulator |
+| Web static export | `pnpm build` | 11 routes exported |
+| Firestore rules | `pnpm test:rules` | 23 passed against the emulator |
 | Android compile | `.\gradlew.bat assembleDebug` | `app-debug.apk`, 14.7 MB |
 | Android lint | `.\gradlew.bat :app:lintDebug` | 0 errors, 44 warnings (version/deprecation noise) |
 
@@ -27,6 +27,8 @@ A minimal college schedule manager. Weekly timetable, tasks, study progress, and
 | Timetable | Weekly recurring classes (subject, room, teacher, day, start/end, color), day + week views |
 | Tasks | Deadline, linked subject, priority, status (todo/doing/done), list + kanban |
 | Study | Per-subject progress, session logging, weekly hours chart, Pomodoro timer |
+| Training | Runs, football, gym and other sessions; Strava archive import; PT totals |
+| Stats | Academic and training totals, 14-day trends, per-subject and per-type breakdowns |
 | Reminders | In-page reminders on web; exact local alarms on Android |
 | Auth | Google + email/password, one account across both clients |
 | Sync | Firestore realtime + offline persistence on both clients |

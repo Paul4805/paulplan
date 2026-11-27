@@ -58,11 +58,11 @@ object AlarmMath {
                 val notifyAt = start.minusSeconds(lead * 60L)
                 if (!notifyAt.isAfter(nowInstant)) continue
 
-                val subject = subjects[slot.subjectId]
+                val subject = slot.subjectId?.let { subjects[it] }
                 result += ScheduledAlarm(
                     eventId = "c:${slot.id}:${start.epochSecond / 60}",
                     alarmId = "class:${slot.id}",
-                    title = subject?.name ?: "Class",
+                    title = subject?.name ?: slot.title ?: "Event",
                     detail = buildString {
                         append(timeLabel(slot.startMinutes))
                         slot.room?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }

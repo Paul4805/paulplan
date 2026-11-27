@@ -29,13 +29,16 @@ export interface Subject extends WithId {
 }
 
 export interface ClassSlot extends WithId {
-  subjectId: string
+  kind?: 'class' | 'event'
+  subjectId?: string | null
+  title?: string
   dayOfWeek: number
   startMinutes: number
   endMinutes: number
   room?: string
   teacher?: string
   colorOverride?: TagColor
+  notes?: string
   termId?: string
 }
 
@@ -58,6 +61,23 @@ export interface StudySession extends WithId {
   durationMinutes: number
   source: 'pomodoro' | 'manual'
   note?: string
+}
+
+export type PtType = 'run' | 'football' | 'gym' | 'other'
+
+export const PT_TYPES: PtType[] = ['run', 'football', 'gym', 'other']
+
+export interface PtSession extends WithId {
+  type: PtType
+  title?: string
+  startedAt: Timestamp | null
+  durationMinutes: number
+  distanceKm?: number | null
+  source: 'manual' | 'strava-csv'
+  stravaId?: string | null
+  notes?: string
+  createdAt?: Timestamp | null
+  updatedAt?: Timestamp | null
 }
 
 export interface Alarm extends WithId {
