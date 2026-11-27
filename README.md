@@ -27,7 +27,7 @@ A minimal college schedule manager. Weekly timetable, tasks, study progress, and
 | Timetable | Weekly recurring classes (subject, room, teacher, day, start/end, color), day + week views |
 | Tasks | Deadline, linked subject, priority, status (todo/doing/done), list + kanban |
 | Study | Per-subject progress, session logging, weekly hours chart, Pomodoro timer |
-| Training | Runs, football, gym and other sessions; Garmin export import (Strava CSV too); PT totals |
+| Training | Runs, football, gym and other sessions; automatic Garmin sync via Personal API key on the phone; export import fallback |
 | Stats | Academic and training totals, 14-day trends, per-subject and per-type breakdowns |
 | Reminders | In-page reminders on web; exact local alarms on Android |
 | Auth | Google + email/password, one account across both clients |

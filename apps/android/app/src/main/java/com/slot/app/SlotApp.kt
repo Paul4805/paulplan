@@ -6,6 +6,8 @@ import com.google.firebase.FirebaseOptions
 import com.slot.app.alarm.AlarmSync
 import com.slot.app.alarm.AlarmRefreshWorker
 import com.slot.app.alarm.NotificationChannels
+import com.slot.app.data.GarminSyncWatcher
+import com.slot.app.data.GarminSyncWorker
 
 class SlotApp : Application() {
     override fun onCreate() {
@@ -14,6 +16,8 @@ class SlotApp : Application() {
         NotificationChannels.create(this)
         AlarmSync.start(this)
         AlarmRefreshWorker.enqueue(this)
+        GarminSyncWatcher.start(this)
+        GarminSyncWorker.enqueue(this)
     }
 
     private fun initializeFirebase() {

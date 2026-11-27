@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +45,7 @@ import com.slot.app.core.design.Tokens
 import com.slot.app.data.AlarmItem
 import com.slot.app.data.SlotViewModel
 import java.time.ZoneId
+import java.util.Date
 
 private fun Context.startSafely(intent: Intent) {
     runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -60,6 +62,9 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     var name by remember(user?.uid) { mutableStateOf(user?.displayName ?: "") }
     var alarmOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AlarmItem?>(null) }
+    var garminKey by remember { mutableStateOf("") }
+    val garminConfigured by vm.garminConfigured.collectAsStateWithLifecycle()
+    val garminLastSync by vm.garminLastSync.collectAsStateWithLifecycle()
 
     val notifications = remember(refresh) { NotificationChannels.isGranted(context) }
     val exact = remember(refresh) { NotificationChannels.canScheduleExact(context) }
@@ -248,6 +253,53 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column(Modifier.padding(Tokens.Space.s4), verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                Text("Garmin", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Personal API key from Garmin Connect → Settings → Personal API. It stays on this phone; the web reads the synced sessions.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                if (!garminConfigured) {
+                    OutlinedTextField(
+                        value = garminKey,
+                        onValueChange = { garminKey = it },
+                        label = { Text("Personal API key") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = {
+                            vm.saveGarminKey(garminKey)
+                            garminKey = ""
+                        },
+                        enabled = garminKey.isNotBlank(),
+                    ) { Text("Save & sync") }
+                } else {
+                    Text(
+                        if (garminLastSync > 0) {
+                            "Connected · last sync ${dateLabel(Date(garminLastSync))}"
+                        } else {
+                            "Connected · not synced yet"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                        Button(onClick = { vm.syncGarmin(manual = true) }) { Text("Sync now") }
+                        TextButton(onClick = { vm.disconnectGarmin() }) { Text("Disconnect") }
+                    }
+                }
             }
         }
 

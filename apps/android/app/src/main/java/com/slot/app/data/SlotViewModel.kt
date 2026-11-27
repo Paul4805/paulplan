@@ -125,6 +125,44 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deletePtSession(id: String) = write { it.deletePtSession(id) }
 
+    /* ------------------------------------------------------------- garmin --- */
+
+    val garminConfigured = MutableStateFlow(
+        GarminStore.apiKey(getApplication()) != null,
+    )
+    val garminLastSync = MutableStateFlow(GarminStore.lastSync(getApplication()))
+
+    fun saveGarminKey(key: String) {
+        if (key.isBlank()) return
+        GarminStore.saveKey(getApplication(), key)
+        garminConfigured.value = true
+        syncGarmin(manual = true)
+    }
+
+    fun syncGarmin(manual: Boolean = false) {
+        val current = _user.value ?: return
+        val db = database ?: return
+        if (GarminStore.apiKey(getApplication()) == null) return
+
+        viewModelScope.launch {
+            runCatching { GarminSync.sync(getApplication(), current.uid, db) }
+                .onSuccess { imported ->
+                    garminLastSync.value = GarminStore.lastSync(getApplication())
+                    if (manual) {
+                        show(if (imported > 0) "Imported $imported sessions" else "Already up to date")
+                    }
+                }
+                .onFailure { if (manual) show(it.message ?: "Garmin sync failed") }
+        }
+    }
+
+    fun disconnectGarmin() {
+        GarminStore.clear(getApplication())
+        garminConfigured.value = false
+        garminLastSync.value = 0L
+        show("Garmin disconnected")
+    }
+
     fun addAlarm(title: String, recurrence: String, dayOfWeek: Int?, timeMinutes: Int, leadMinutes: Int) {
         val zone = profile.value.timezone ?: java.time.ZoneId.systemDefault().id
         write { it.addAlarm(title, recurrence, dayOfWeek, timeMinutes, leadMinutes, zone) }

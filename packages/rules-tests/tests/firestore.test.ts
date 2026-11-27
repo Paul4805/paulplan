@@ -286,7 +286,7 @@ describe('physical training', () => {
 })
 
 describe('profile', () => {
-  it('lets the owner write settings but requires a timezone', async () => {
+  it('keeps the profile schema but allows other meta documents', async () => {
     const profile = {
       timezone: 'Asia/Kolkata',
       schemaVersion: 1,
@@ -296,6 +296,13 @@ describe('profile', () => {
     await assertSucceeds(setDoc(doc(asAlice(), path('meta/profile')), profile))
     await assertFails(
       setDoc(doc(asAlice(), path('meta/profile')), { ...profile, timezone: 42 }),
+    )
+    await assertSucceeds(
+      setDoc(doc(asAlice(), path('meta/garmin')), {
+        enabled: true,
+        lastImported: 3,
+        updatedAt: serverTimestamp(),
+      }),
     )
   })
 

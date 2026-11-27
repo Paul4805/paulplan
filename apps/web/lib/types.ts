@@ -73,11 +73,18 @@ export interface PtSession extends WithId {
   startedAt: Timestamp | null
   durationMinutes: number
   distanceKm?: number | null
-  source: 'manual' | 'strava-csv' | 'garmin-json'
+  source: 'manual' | 'strava-csv' | 'garmin-json' | 'garmin-api'
   externalId?: string | null
   notes?: string
   createdAt?: Timestamp | null
   updatedAt?: Timestamp | null
+}
+
+export interface GarminStatus {
+  enabled?: boolean
+  lastSyncAt?: Timestamp | null
+  lastImported?: number
+  requestedAt?: Timestamp | null
 }
 
 export interface Alarm extends WithId {

@@ -171,7 +171,7 @@ Sessions are append-only and immutable in practice; editing a past session rewri
 | `startedAt` | timestamp (UTC) | yes |
 | `durationMinutes` | int 0–1440 | yes |
 | `distanceKm` | number ≥ 0 \| null | no (runs only) |
-| `source` | `'manual' \| 'strava-csv' \| 'garmin-json'` | yes |
+| `source` | `'manual' \| 'strava-csv' \| 'garmin-json' \| 'garmin-api'` | yes |
 | `externalId` | string | no; dedupe key for imports |
 | `notes` | string | no |
 
@@ -181,7 +181,15 @@ Sessions are append-only and immutable in practice; editing a past session rewri
   "externalId": "12345678901", "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
-`externalId` dedupes imports: the importer skips ids already present. Garmin's official API requires partner approval, and Strava's API is subscription-gated, so both importers read a **data export** (`summarizedActivities.json` / `activities.csv`) instead. No server, no client secret.
+`externalId` dedupes imports: the importer skips ids already present.
+
+Three ingestion paths:
+
+- **`garmin-api`** — the primary one. The Android app stores a Garmin Personal API key on-device (never in Firestore), exchanges it for a 24h bearer token, and pulls activities every 12h, on app open, or when the web asks (`meta/garmin.requestedAt`). Garmin sends no CORS headers, so the browser cannot call it; the phone is the sync agent.
+- **`garmin-json`** — a Garmin data-export `summarizedActivities.json`, imported from the web (no key needed).
+- **`strava-csv`** — a Strava `activities.csv`, kept as a fallback.
+
+`meta/garmin` holds only sync status (`enabled`, `lastSyncAt`, `lastImported`, `requestedAt`), never the key. The profile doc keeps its stricter schema; other meta docs only need a server `updatedAt`.
 
 ### `alarms` (definitions)
 

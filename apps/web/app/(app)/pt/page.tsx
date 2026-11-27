@@ -1,6 +1,6 @@
 'use client'
 
-import { Timestamp } from 'firebase/firestore'
+import { Timestamp, serverTimestamp } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -18,13 +18,13 @@ import {
   cn,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
-import { createDoc, removeDoc, useCollection, userPath } from '@/lib/db'
+import { createDoc, removeDoc, useCollection, useDoc, userPath, writeDoc } from '@/lib/db'
 import { parseGarminJson } from '@/lib/garmin'
 import type { ImportedSession } from '@/lib/importers'
 import { parseStravaCsv } from '@/lib/strava'
 import { pad2, startOfWeek, toDate } from '@/lib/time'
 import { useToast } from '@/lib/toast'
-import { PT_TYPES, type PtSession, type PtType } from '@/lib/types'
+import { PT_TYPES, type GarminStatus, type PtSession, type PtType } from '@/lib/types'
 
 const TYPE_LABEL: Record<PtType, string> = {
   run: 'Run',
@@ -64,6 +64,10 @@ export default function TrainingPage() {
   const { user } = useAuth()
   const toast = useToast()
   const sessions = useCollection<PtSession>(user ? userPath(user.uid, 'ptSessions') : null)
+  const garmin = useDoc<GarminStatus & { id: string }>(
+    user ? userPath(user.uid, 'meta/garmin') : null,
+  )
+  const [requesting, setRequesting] = useState(false)
 
   const [logOpen, setLogOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -169,6 +173,36 @@ export default function TrainingPage() {
       console.error(cause)
       toast({ title: 'Could not delete the session', tone: 'danger' })
     }
+  }
+
+  async function requestGarminSync() {
+    if (!user) return
+    setRequesting(true)
+    try {
+      await writeDoc(userPath(user.uid, 'meta/garmin'), { requestedAt: serverTimestamp() })
+      toast({
+        title: 'Sync requested',
+        description: 'Your phone will pull the latest activities when it is online.',
+        tone: 'success',
+      })
+    } catch (cause) {
+      console.error(cause)
+      toast({ title: 'Could not request a sync', tone: 'danger' })
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  function lastSyncText(value: Timestamp | null | undefined): string {
+    const date = toDate(value)
+    return date
+      ? date.toLocaleString(undefined, {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'never'
   }
 
   async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -306,6 +340,34 @@ export default function TrainingPage() {
         </Card>
       </section>
 
+      <section className="mt-4" aria-labelledby="garmin-sync">
+        <h2 id="garmin-sync" className="sr-only">
+          Garmin sync
+        </h2>
+        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">Garmin</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
+              {garmin.item?.enabled
+                ? `Connected · last sync ${lastSyncText(garmin.item.lastSyncAt)}${
+                    garmin.item.lastImported ? ` · ${garmin.item.lastImported} new` : ''
+                  }`
+                : 'Connect your Personal API key in the Android app → Settings → Garmin. The key stays on the phone.'}
+            </p>
+          </div>
+          {garmin.item?.enabled ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={requestGarminSync}
+              disabled={requesting}
+            >
+              {requesting ? 'Requesting…' : 'Sync now via phone'}
+            </Button>
+          ) : null}
+        </Card>
+      </section>
+
       <section className="mt-8" aria-labelledby="sessions">
         <div className="mb-3 flex items-center justify-between">
           <h2 id="sessions" className="text-base font-medium text-ink">
@@ -357,7 +419,7 @@ export default function TrainingPage() {
                       {started ? ` · ${timeInput(started)}` : ''}
                       {session.source === 'strava-csv'
                         ? ' · Strava'
-                        : session.source === 'garmin-json'
+                        : session.source === 'garmin-json' || session.source === 'garmin-api'
                           ? ' · Garmin'
                           : ''}
                     </p>

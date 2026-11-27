@@ -152,7 +152,7 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                                 session.startedAt?.let { append(dateLabel(it)) }
                                 when (session.source) {
                                     "strava-csv" -> append(" · Strava")
-                                    "garmin-json" -> append(" · Garmin")
+                                    "garmin-json", "garmin-api" -> append(" · Garmin")
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall,
