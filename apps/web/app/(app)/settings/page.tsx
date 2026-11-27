@@ -8,7 +8,7 @@ import {
   reauthenticateWithCredential,
   updateProfile,
 } from 'firebase/auth'
-import { Timestamp } from 'firebase/firestore'
+import { Timestamp, serverTimestamp } from 'firebase/firestore'
 
 import {
   Badge,
@@ -22,6 +22,7 @@ import {
   Segmented,
   Select,
   Skeleton,
+  cn,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import {
@@ -46,9 +47,21 @@ import { useToast } from '@/lib/toast'
 import {
   DEFAULT_PROFILE,
   type Alarm,
+  type GarminStatus,
   type Profile,
   type ThemeMode,
 } from '@/lib/types'
+
+const SECTIONS = [
+  { id: 'account', label: 'Account' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'alarms', label: 'Alarms' },
+  { id: 'connections', label: 'Connections' },
+  { id: 'term', label: 'Term' },
+  { id: 'data', label: 'Data' },
+] as const
+
+type SettingsSection = (typeof SECTIONS)[number]['id']
 
 const RESTORE_COLLECTIONS = [
   'subjects',
@@ -84,9 +97,14 @@ export default function SettingsPage() {
   const profilePath = user ? userPath(user.uid, 'meta/profile') : null
   const profile = useDoc<Profile & { id: string }>(profilePath)
   const alarms = useCollection<Alarm>(user ? userPath(user.uid, 'alarms') : null)
+  const garmin = useDoc<GarminStatus & { id: string }>(
+    user ? userPath(user.uid, 'meta/garmin') : null,
+  )
 
+  const [section, setSection] = useState<SettingsSection>('account')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [requesting, setRequesting] = useState(false)
   const [alarmTitle, setAlarmTitle] = useState('')
   const [alarmRecurrence, setAlarmRecurrence] = useState<'daily' | 'weekly'>('daily')
   const [alarmDay, setAlarmDay] = useState('1')
@@ -202,6 +220,36 @@ export default function SettingsPage() {
       console.error(cause)
       toast({ title: 'Could not delete the alarm', tone: 'danger' })
     }
+  }
+
+  async function requestGarminSync() {
+    if (!user) return
+    setRequesting(true)
+    try {
+      await writeDoc(userPath(user.uid, 'meta/garmin'), { requestedAt: serverTimestamp() })
+      toast({
+        title: 'Sync requested',
+        description: 'Your phone will pull the latest activities when it is online.',
+        tone: 'success',
+      })
+    } catch (cause) {
+      console.error(cause)
+      toast({ title: 'Could not request a sync', tone: 'danger' })
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  function lastSyncText(value: Timestamp | null | undefined): string {
+    const date = value?.toDate()
+    return date
+      ? date.toLocaleString(undefined, {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'never'
   }
 
   async function exportData() {
@@ -464,7 +512,26 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-10">
-      <PageHeader title="Settings" description="Account, appearance, reminders, and your data." />
+      <PageHeader title="Settings" description="Account, preferences, connections, and your data." />
+
+      <div className="flex flex-wrap gap-2">
+        {SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={section === item.id}
+            onClick={() => setSection(item.id)}
+            className={cn(
+              'rounded-chip border px-3 py-1.5 text-sm font-medium transition-colors duration-fast',
+              section === item.id
+                ? 'border-accent bg-accent-subtle text-accent-text'
+                : 'border-border bg-surface text-ink-muted hover:text-ink',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {profile.error ? (
         <div className="mb-4">
@@ -472,7 +539,7 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      <section aria-labelledby="account">
+      <section aria-labelledby="account" hidden={section !== 'account'}>
         <h2 id="account" className="mb-3 text-base font-medium text-ink">
           Account
         </h2>
@@ -508,7 +575,7 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="appearance">
+      <section aria-labelledby="appearance" hidden={section !== 'appearance'}>
         <h2 id="appearance" className="mb-3 text-base font-medium text-ink">
           Appearance
         </h2>
@@ -535,7 +602,43 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="term">
+      <section aria-labelledby="connections" hidden={section !== 'connections'}>
+        <h2 id="connections" className="mb-3 text-base font-medium text-ink">
+          Connections
+        </h2>
+        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">Garmin</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
+              {garmin.item?.enabled
+                ? `Connected · last sync ${lastSyncText(garmin.item.lastSyncAt)}${
+                    garmin.item.lastImported ? ` · ${garmin.item.lastImported} new` : ''
+                  }`
+                : 'Connect your Personal API key in the Android app → Settings → Garmin. The key stays on the phone.'}
+            </p>
+            {garmin.item?.enabled ? (
+              <p className="mt-1 text-xs text-ink-muted">
+                {garmin.item.healthLastSyncAt
+                  ? `Health · ${garmin.item.healthDays ?? 0} days synced`
+                  : 'Health · waiting for the next sync'}
+                {garmin.item.healthError ? ` · ${garmin.item.healthError}` : ''}
+              </p>
+            ) : null}
+          </div>
+          {garmin.item?.enabled ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={requestGarminSync}
+              disabled={requesting}
+            >
+              {requesting ? 'Requesting…' : 'Sync now via phone'}
+            </Button>
+          ) : null}
+        </Card>
+      </section>
+
+      <section aria-labelledby="term" hidden={section !== 'term'}>
         <h2 id="term" className="mb-3 text-base font-medium text-ink">
           Term
         </h2>
@@ -601,7 +704,7 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="alarms">
+      <section aria-labelledby="alarms" hidden={section !== 'alarms'}>
         <h2 id="alarms" className="mb-3 text-base font-medium text-ink">
           Alarms
         </h2>
@@ -716,7 +819,7 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="reminders">
+      <section aria-labelledby="reminders" hidden={section !== 'appearance'}>
         <h2 id="reminders" className="mb-3 text-base font-medium text-ink">
           Reminder defaults
         </h2>
@@ -774,7 +877,7 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="timezone">
+      <section aria-labelledby="timezone" hidden={section !== 'appearance'}>
         <h2 id="timezone" className="mb-3 text-base font-medium text-ink">
           Timezone
         </h2>
@@ -795,7 +898,7 @@ export default function SettingsPage() {
         </Card>
       </section>
 
-      <section aria-labelledby="data">
+      <section aria-labelledby="data" hidden={section !== 'data'}>
         <h2 id="data" className="mb-3 text-base font-medium text-ink">
           Your data
         </h2>

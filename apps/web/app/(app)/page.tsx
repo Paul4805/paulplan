@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import { ClassDialog } from '@/components/class-dialog'
+import { ActionMenu } from '@/components/action-menu'
 import { TaskDialog } from '@/components/task-dialog'
 import {
   Badge,
@@ -12,7 +13,6 @@ import {
   EmptyState,
   ErrorNote,
   PageHeader,
-  Progress,
   Skeleton,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
@@ -27,14 +27,7 @@ import {
   termState,
   toDate,
 } from '@/lib/time'
-import type {
-  Alarm,
-  ClassSlot,
-  Profile,
-  StudySession,
-  Subject,
-  Task,
-} from '@/lib/types'
+import type { ClassSlot, Profile, StudySession, Subject, Task } from '@/lib/types'
 
 function greeting(hour: number): string {
   if (hour < 12) return 'Good morning'
@@ -50,7 +43,6 @@ export default function TodayPage() {
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
   const tasks = useCollection<Task>(user ? userPath(user.uid, 'tasks') : null)
   const sessions = useCollection<StudySession>(user ? userPath(user.uid, 'studySessions') : null)
-  const alarms = useCollection<Alarm>(user ? userPath(user.uid, 'alarms') : null)
   const profile = useDoc<Profile & { id: string }>(
     user ? userPath(user.uid, 'meta/profile') : null,
   )
@@ -128,11 +120,6 @@ export default function TodayPage() {
     [openTasks],
   )
 
-  const overdueCount = openTasks.filter((task) => {
-    const due = toDate(task.dueAt)
-    return due !== null && due.getTime() < now.getTime()
-  }).length
-
   const studyMinutesToday = useMemo(
     () =>
       sessions.items.reduce((total, session) => {
@@ -146,11 +133,6 @@ export default function TodayPage() {
       }, 0),
     [sessions.items, today],
   )
-
-  const nextAlarm = useMemo(() => {
-    const enabled = alarms.items.filter((alarm) => alarm.enabled)
-    return enabled[0] ?? null
-  }, [alarms.items])
 
   const loading = classes.loading || subjects.loading || tasks.loading || sessions.loading
 
@@ -166,30 +148,32 @@ export default function TodayPage() {
           month: 'long',
         })}
         actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setTaskOpen(true)}>
-              New task
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setEntryKind('class')
-                setClassOpen(true)
-              }}
-            >
-              Class
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEntryKind('event')
-                setClassOpen(true)
-              }}
-            >
-              Event
-            </Button>
-          </>
+          <ActionMenu
+            label="+ New"
+            items={[
+              {
+                label: 'Task',
+                description: 'Deadline or to-do',
+                onSelect: () => setTaskOpen(true),
+              },
+              {
+                label: 'Class',
+                description: 'Repeats every week',
+                onSelect: () => {
+                  setEntryKind('class')
+                  setClassOpen(true)
+                },
+              },
+              {
+                label: 'Event',
+                description: 'One-off on a date',
+                onSelect: () => {
+                  setEntryKind('event')
+                  setClassOpen(true)
+                },
+              },
+            ]}
+          />
         }
       />
 
@@ -199,7 +183,8 @@ export default function TodayPage() {
         </div>
       ) : null}
 
-      <section aria-label="At a glance" className="grid grid-cols-2 gap-3 lg:grid-cols-4">        <Card className="p-4">
+      <section aria-label="At a glance" className="grid grid-cols-2 gap-3">
+        <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
             {currentClass ? 'Now' : nextClass ? 'Up next' : 'Now'}
           </p>
@@ -231,33 +216,12 @@ export default function TodayPage() {
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Due soon</p>
-          <p className="mt-2 text-xxl font-semibold leading-none tracking-tight text-ink">
-            {dueSoon.length}
-          </p>
-          <p className="mt-1 text-sm text-ink-muted">
-            {overdueCount > 0 ? `${overdueCount} overdue` : 'Nothing overdue'}
-          </p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Studied today</p>
-          <p className="mt-2 text-xxl font-semibold leading-none tracking-tight text-ink">
-            {studyMinutesToday}
-            <span className="ml-1 text-base font-medium text-ink-muted">min</span>
-          </p>
-          <p className="mt-1 text-sm text-ink-muted">
-            {profile.item?.pomodoro?.focus ?? 25} min pomodoro
-          </p>
-        </Card>
-
-        <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Open tasks</p>
           <p className="mt-2 text-xxl font-semibold leading-none tracking-tight text-ink">
             {openTasks.length}
           </p>
           <p className="mt-1 text-sm text-ink-muted">
-            {tasks.items.length - openTasks.length} done
+            {dueSoon.length} due soon · {studyMinutesToday}m studied today
           </p>
         </Card>
       </section>
@@ -409,95 +373,14 @@ export default function TodayPage() {
         </section>
       </div>
 
-      <section className="mt-8" aria-labelledby="reminders">
-        <h2 id="reminders" className="mb-3 text-base font-medium text-ink">
-          Reminders
-        </h2>
-        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">
-              {nextAlarm ? nextAlarm.title : 'No alarms yet'}
-            </p>
-            <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
-              Alarms fire on your phone, even offline. Web shows a banner while this tab is open.
-            </p>
-          </div>
-          <Link href="/settings" className="shrink-0">
-            <Button variant="secondary" size="sm">
-              Alarm settings
-            </Button>
-          </Link>
-        </Card>
-      </section>
-
-      <section className="mt-8" aria-labelledby="week-progress">
-        <h2 id="week-progress" className="mb-3 text-base font-medium text-ink">
-          Weekly targets
-        </h2>
-        {subjects.items.length === 0 ? (
-          <EmptyState
-            title="No subjects yet"
-            description="Subjects colour your timetable and group your tasks and study time."
-            action={
-              <Link href="/subjects">
-                <Button size="sm" variant="secondary">
-                  Add a subject
-                </Button>
-              </Link>
-            }
-          />
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {subjects.items.filter((subject) => !subject.archived).slice(0, 4).map((subject) => {
-              const logged = sessions.items
-                .filter((session) => {
-                  if (session.subjectId !== subject.id) return false
-                  const started = toDate(session.startedAt)
-                  if (!started) return false
-                  const weekAgo = new Date()
-                  weekAgo.setDate(weekAgo.getDate() - 7)
-                  return started >= weekAgo
-                })
-                .reduce((total, session) => total + (session.durationMinutes ?? 0), 0)
-              const target = (subject.targetHoursPerWeek ?? 0) * 60
-              return (
-                <Card key={subject.id} className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-medium text-ink">{subject.name}</p>
-                    <span className="text-xs tabular-nums text-ink-muted">
-                      {Math.round((logged / 60) * 10) / 10}
-                      {target > 0 ? ` / ${subject.targetHoursPerWeek}h` : 'h'}
-                    </span>
-                  </div>
-                  <Progress
-                    className="mt-3"
-                    label={`${subject.name} study progress`}
-                    value={target > 0 ? logged / target : 0}
-                  />
-                </Card>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="mt-8" aria-labelledby="quick-links">
-        <h2 id="quick-links" className="sr-only">
-          Quick links
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/focus">
-            <Button variant="secondary" size="sm">
-              Start a focus session
-            </Button>
-          </Link>
-          <Link href="/subjects">
-            <Button variant="secondary" size="sm">
-              Subjects &amp; progress
-            </Button>
-          </Link>
-        </div>
-      </section>
+      <div className="mt-6 flex gap-4 text-sm text-ink-muted lg:hidden">
+        <Link href="/focus" className="hover:text-ink">
+          Start focus
+        </Link>
+        <Link href="/subjects" className="hover:text-ink">
+          Subjects
+        </Link>
+      </div>
 
       <ClassDialog
         open={classOpen}

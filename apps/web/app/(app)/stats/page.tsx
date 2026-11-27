@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 
 import {
-  Badge,
   Card,
   EmptyState,
   ErrorNote,
@@ -18,7 +17,6 @@ import { useCollection, useDoc, userPath } from '@/lib/db'
 import { activityStreak, dateKey, rangeDays, rangeLabel, rangeStart, type StatsRange } from '@/lib/stats'
 import { addDays, durationLabel, startOfDay, startOfWeek, toDate } from '@/lib/time'
 import type {
-  ClassSlot,
   DailyHealth,
   GarminStatus,
   Profile,
@@ -166,32 +164,43 @@ function DayBars({
   )
 }
 
-function StreakCard({
+function HeatmapSummary({
   title,
-  current,
-  longest,
-  total,
+  days,
+  values,
   tone,
+  streak,
 }: {
   title: string
-  current: number
-  longest: number
-  total: number
+  days: Date[]
+  values: Map<string, number>
   tone: 'accent' | 'success'
+  streak: { current: number; longest: number; total: number }
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm font-medium text-ink">{title}</p>
-        <Badge tone={tone === 'accent' ? 'accent' : 'success'}>{current} day streak</Badge>
+    <Card className="p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <p className="text-sm font-medium text-ink">{title}</p>
+            <span className="text-xs text-ink-muted">last 12 weeks</span>
+          </div>
+          <Heatmap
+            days={days}
+            values={values}
+            tone={tone}
+            label={`${title} minutes per day for the last 12 weeks`}
+          />
+        </div>
+        <div className="sm:w-44 sm:text-right">
+          <p className="text-lg font-semibold tabular-nums text-ink">
+            {streak.current} day streak
+          </p>
+          <p className="mt-1 text-xs text-ink-muted">
+            best {streak.longest} · {streak.total} active days
+          </p>
+        </div>
       </div>
-      <p className="mt-2 text-xxl font-semibold tabular-nums leading-none text-ink">
-        {longest}
-        <span className="ml-1 text-sm font-medium text-ink-muted">best</span>
-      </p>
-      <p className="mt-1 text-sm text-ink-muted">
-        {total} active {total === 1 ? 'day' : 'days'} in the last 12 weeks
-      </p>
     </Card>
   )
 }
@@ -199,10 +208,10 @@ function StreakCard({
 export default function StatsPage() {
   const { user } = useAuth()
   const [range, setRange] = useState<StatsRange>('week')
+  const [section, setSection] = useState<'academics' | 'training'>('academics')
 
   const study = useCollection<StudySession>(user ? userPath(user.uid, 'studySessions') : null)
   const tasks = useCollection<Task>(user ? userPath(user.uid, 'tasks') : null)
-  const entries = useCollection<ClassSlot>(user ? userPath(user.uid, 'classes') : null)
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
   const pt = useCollection<PtSession>(user ? userPath(user.uid, 'ptSessions') : null)
   const health = useCollection<DailyHealth>(user ? userPath(user.uid, 'dailyHealth') : null)
@@ -370,39 +379,34 @@ export default function StatsPage() {
         {meta?.termName && range === 'term' ? ` · ${meta.termName}` : ''}
       </p>
 
-      <section aria-labelledby="academic-stats">
-        <h2 id="academic-stats" className="mb-3 text-base font-medium text-ink">
-          Academics
-        </h2>
+      <Segmented<'academics' | 'training'>
+        label="Stats section"
+        value={section}
+        onChange={setSection}
+        options={[
+          { value: 'academics', label: 'Academics' },
+          { value: 'training', label: 'Training' },
+        ]}
+      />
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Studied</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
-              {durationLabel(studyRange)}
-            </p>
-            <p className="mt-1 text-sm text-ink-muted">all time {durationLabel(studyAll)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Tasks done</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">{doneInRange.length}</p>
-            <p className="mt-1 text-sm text-ink-muted">
-              {doneTasks.length} all time · {openTasks} open
-            </p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Schedule</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">{entries.items.length}</p>
-            <p className="mt-1 text-sm text-ink-muted">weekly classes and events</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Subjects</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
-              {subjects.items.filter((subject) => !subject.archived).length}
-            </p>
-            <p className="mt-1 text-sm text-ink-muted">active this term</p>
-          </Card>
-        </div>
+      {section === 'academics' ? (
+        <section aria-labelledby="academic-stats">
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="p-4">
+              <p className="text-xs uppercase tracking-wide text-ink-muted">Studied</p>
+              <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
+                {durationLabel(studyRange)}
+              </p>
+              <p className="mt-1 text-sm text-ink-muted">all time {durationLabel(studyAll)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs uppercase tracking-wide text-ink-muted">Tasks done</p>
+              <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">{doneInRange.length}</p>
+              <p className="mt-1 text-sm text-ink-muted">
+                {doneTasks.length} all time · {openTasks} open
+              </p>
+            </Card>
+          </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <Card className="p-5">
@@ -445,60 +449,46 @@ export default function StatsPage() {
           </Card>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <Card className="p-5">
-            <div className="mb-4 flex items-baseline justify-between">
-              <p className="text-sm font-medium text-ink">Study heatmap</p>
-              <span className="text-xs text-ink-muted">last 12 weeks</span>
-            </div>
-            <Heatmap days={heatDays} values={studyByDay} tone="accent" label="Study minutes per day for the last 12 weeks" />
-          </Card>
-          <StreakCard
-            title="Study streak"
-            current={studyStreak.current}
-            longest={studyStreak.longest}
-            total={studyStreak.total}
-            tone="accent"
-          />
-        </div>
-      </section>
+          <div className="mt-4">
+            <HeatmapSummary
+              title="Study heatmap"
+              days={heatDays}
+              values={studyByDay}
+              tone="accent"
+              streak={studyStreak}
+            />
+          </div>
+        </section>
+      ) : null}
 
-      <section aria-labelledby="training-stats">
-        <h2 id="training-stats" className="mb-3 text-base font-medium text-ink">
-          Physical training
-        </h2>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Trained</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
-              {durationLabel(ptRange)}
-            </p>
-            <p className="mt-1 text-sm text-ink-muted">all time {durationLabel(ptAll)}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Sessions</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">{ptRangeCount}</p>
-            <p className="mt-1 text-sm text-ink-muted">{pt.items.length} all time</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Distance</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
-              {Math.round(kmRange * 10) / 10}
-              <span className="ml-1 text-base font-medium text-ink-muted">km</span>
-            </p>
-            <p className="mt-1 text-sm text-ink-muted">{rangeLabel(range).toLowerCase()}</p>
-          </Card>
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-ink-muted">Balance</p>
-            <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
+      {section === 'training' ? (
+        <section aria-labelledby="training-stats">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm text-ink-muted">
               {studyRange + ptRange > 0
-                ? `${Math.round((studyRange / (studyRange + ptRange)) * 100)}%`
-                : '—'}
+                ? `Study ${Math.round((studyRange / (studyRange + ptRange)) * 100)}% · training ${Math.round(
+                    (ptRange / (studyRange + ptRange)) * 100,
+                  )}%`
+                : 'No study or training in this range'}
             </p>
-            <p className="mt-1 text-sm text-ink-muted">study vs training</p>
-          </Card>
-        </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="p-4">
+              <p className="text-xs uppercase tracking-wide text-ink-muted">Trained</p>
+              <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">
+                {durationLabel(ptRange)}
+              </p>
+              <p className="mt-1 text-sm text-ink-muted">all time {durationLabel(ptAll)}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs uppercase tracking-wide text-ink-muted">Sessions</p>
+              <p className="mt-2 text-xxl font-semibold tabular-nums text-ink">{ptRangeCount}</p>
+              <p className="mt-1 text-sm text-ink-muted">
+                {pt.items.length} all time · {Math.round(kmRange * 10) / 10} km
+              </p>
+            </Card>
+          </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <Card className="p-5">
@@ -545,22 +535,15 @@ export default function StatsPage() {
           </Card>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <Card className="p-5">
-            <div className="mb-4 flex items-baseline justify-between">
-              <p className="text-sm font-medium text-ink">Training heatmap</p>
-              <span className="text-xs text-ink-muted">last 12 weeks</span>
-            </div>
-            <Heatmap days={heatDays} values={ptByDay} tone="success" label="Training minutes per day for the last 12 weeks" />
-          </Card>
-          <StreakCard
-            title="Training streak"
-            current={ptStreak.current}
-            longest={ptStreak.longest}
-            total={ptStreak.total}
-            tone="success"
-          />
-        </div>
+          <div className="mt-4">
+            <HeatmapSummary
+              title="Training heatmap"
+              days={heatDays}
+              values={ptByDay}
+              tone="success"
+              streak={ptStreak}
+            />
+          </div>
 
         <div className="mt-8" aria-labelledby="wellbeing">
           <div className="mb-3 flex items-baseline justify-between">
@@ -591,35 +574,36 @@ export default function StatsPage() {
               ) : null}
             </Card>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-muted">Sleep</p>
-                <p className="mt-2 text-xl font-semibold tabular-nums text-ink">
+            <div className="grid grid-cols-3 gap-2">
+              <Card className="p-3">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Sleep</p>
+                <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
                   {sleepLabel(avgSleep)}
                 </p>
-                <p className="mt-1 text-xs text-ink-muted">
-                  {latestHealth?.sleepScore ? `score ${latestHealth.sleepScore}` : 'nightly average'}
+                <p className="mt-1 text-[11px] text-ink-muted">
+                  {latestHealth?.sleepScore ? `score ${latestHealth.sleepScore}` : 'nightly'}
                 </p>
               </Card>
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-muted">Steps</p>
-                <p className="mt-2 text-xl font-semibold tabular-nums text-ink">
+              <Card className="p-3">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Steps</p>
+                <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
                   {avgSteps === null ? '—' : Math.round(avgSteps).toLocaleString()}
                 </p>
-                <p className="mt-1 text-xs text-ink-muted">daily average</p>
+                <p className="mt-1 text-[11px] text-ink-muted">daily avg</p>
               </Card>
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-muted">HRV</p>
-                <p className="mt-2 text-xl font-semibold tabular-nums text-ink">
+              <Card className="p-3">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">HRV</p>
+                <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
                   {avgHrv === null ? '—' : Math.round(avgHrv)}
-                  <span className="ml-1 text-sm font-medium text-ink-muted">ms</span>
+                  <span className="ml-1 text-xs font-medium text-ink-muted">ms</span>
                 </p>
-                <p className="mt-1 text-xs text-ink-muted">last night</p>
+                <p className="mt-1 text-[11px] text-ink-muted">last night</p>
               </Card>
             </div>
           )}
         </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   )
 }

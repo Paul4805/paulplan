@@ -7,7 +7,6 @@ import {
   Badge,
   Button,
   Card,
-  EmptyState,
   ErrorNote,
   Field,
   PageHeader,
@@ -369,44 +368,30 @@ export default function FocusPage() {
             </div>
           </div>
 
-          <p className="text-center text-xs leading-relaxed text-ink-muted">
-            Focus sessions are written to Firestore when the timer reaches zero, so they sync to
-            your phone and appear on the subject page.
-          </p>
         </Card>
 
-        <div className="space-y-6">
-          <Card className="p-4">
-            <div className="flex items-baseline justify-between">
-              <p className="text-sm font-medium text-ink">Today</p>
-              <p className="text-sm tabular-nums text-ink-muted">{durationLabel(minutesToday)}</p>
-            </div>
-            <p className="mt-1 text-xs text-ink-muted">
-              {todaySessions.length} {todaySessions.length === 1 ? 'session' : 'sessions'} logged
-            </p>
-          </Card>
+        <Card className="p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium text-ink">Today</p>
+            <p className="text-sm tabular-nums text-ink-muted">{durationLabel(minutesToday)}</p>
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">
+            {todaySessions.length} {todaySessions.length === 1 ? 'session' : 'sessions'} logged
+          </p>
 
-          <section aria-labelledby="recent-sessions">
-            <h2 id="recent-sessions" className="mb-3 text-sm font-medium text-ink">
-              Today&apos;s sessions
-            </h2>
+          <details className="mt-3 border-t border-border pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-ink">Sessions</summary>
             {sessions.loading ? (
-              <Skeleton className="h-16 w-full" />
+              <Skeleton className="mt-2 h-12 w-full" />
             ) : todaySessions.length === 0 ? (
-              <EmptyState
-                title="No sessions yet"
-                description="Start the timer. Or log one manually from a subject page."
-              />
+              <p className="mt-2 text-sm text-ink-muted">No sessions yet.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="mt-2 space-y-2">
                 {todaySessions.map((session) => {
                   const subject = subjects.items.find((item) => item.id === session.subjectId)
                   const started = toDate(session.startedAt)
                   return (
-                    <li
-                      key={session.id}
-                      className="flex items-center gap-3 rounded-card border border-border bg-surface p-3"
-                    >
+                    <li key={session.id} className="flex items-center gap-3">
                       <span
                         aria-hidden
                         className="size-2 shrink-0 rounded-pill"
@@ -433,8 +418,8 @@ export default function FocusPage() {
                 })}
               </ul>
             )}
-          </section>
-        </div>
+          </details>
+        </Card>
       </div>
     </div>
   )

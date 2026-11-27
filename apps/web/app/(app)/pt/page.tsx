@@ -1,9 +1,10 @@
 'use client'
 
-import { Timestamp, serverTimestamp } from 'firebase/firestore'
+import { Timestamp } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { SessionDetail } from '@/components/session-detail'
+import { ActionMenu } from '@/components/action-menu'
 import {
   Button,
   Card,
@@ -19,13 +20,13 @@ import {
   cn,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
-import { createDoc, removeDoc, useCollection, useDoc, userPath, writeDoc } from '@/lib/db'
+import { createDoc, removeDoc, useCollection, userPath } from '@/lib/db'
 import { parseGarminJson } from '@/lib/garmin'
 import type { ImportedSession } from '@/lib/importers'
 import { parseStravaCsv } from '@/lib/strava'
 import { pad2, startOfWeek, toDate } from '@/lib/time'
 import { useToast } from '@/lib/toast'
-import { PT_TYPES, type GarminStatus, type PtSession, type PtType } from '@/lib/types'
+import { PT_TYPES, type PtSession, type PtType } from '@/lib/types'
 
 const TYPE_LABEL: Record<PtType, string> = {
   run: 'Run',
@@ -65,14 +66,11 @@ export default function TrainingPage() {
   const { user } = useAuth()
   const toast = useToast()
   const sessions = useCollection<PtSession>(user ? userPath(user.uid, 'ptSessions') : null)
-  const garmin = useDoc<GarminStatus & { id: string }>(
-    user ? userPath(user.uid, 'meta/garmin') : null,
-  )
-  const [requesting, setRequesting] = useState(false)
 
   const [logOpen, setLogOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [detail, setDetail] = useState<PtSession | null>(null)
+  const [visible, setVisible] = useState(12)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -177,36 +175,6 @@ export default function TrainingPage() {
     }
   }
 
-  async function requestGarminSync() {
-    if (!user) return
-    setRequesting(true)
-    try {
-      await writeDoc(userPath(user.uid, 'meta/garmin'), { requestedAt: serverTimestamp() })
-      toast({
-        title: 'Sync requested',
-        description: 'Your phone will pull the latest activities when it is online.',
-        tone: 'success',
-      })
-    } catch (cause) {
-      console.error(cause)
-      toast({ title: 'Could not request a sync', tone: 'danger' })
-    } finally {
-      setRequesting(false)
-    }
-  }
-
-  function lastSyncText(value: Timestamp | null | undefined): string {
-    const date = toDate(value)
-    return date
-      ? date.toLocaleString(undefined, {
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : 'never'
-  }
-
   async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -277,9 +245,19 @@ export default function TrainingPage() {
         description="Runs, football, gym — the physical side, tracked separately from study."
         actions={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
-              Import
-            </Button>
+            <ActionMenu
+              label="More"
+              variant="secondary"
+              size="sm"
+              ariaLabel="More training actions"
+              items={[
+                {
+                  label: 'Import',
+                  description: 'Garmin JSON or Strava CSV',
+                  onSelect: () => setImportOpen(true),
+                },
+              ]}
+            />
             <Button size="sm" onClick={() => setLogOpen(true)}>
               Log session
             </Button>
@@ -293,24 +271,15 @@ export default function TrainingPage() {
         </div>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3">
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">This week</p>
           <p className="mt-2 text-xxl font-semibold leading-none tabular-nums tracking-tight text-ink">
             {Math.round((weekMinutes / 60) * 10) / 10}
             <span className="ml-1 text-base font-medium text-ink-muted">h</span>
           </p>
-          <p className="mt-1 text-sm text-ink-muted">{thisWeek.length} sessions</p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Distance</p>
-          <p className="mt-2 text-xxl font-semibold leading-none tabular-nums tracking-tight text-ink">
-            {Math.round(weekKm * 10) / 10}
-            <span className="ml-1 text-base font-medium text-ink-muted">km</span>
-          </p>
           <p className="mt-1 text-sm text-ink-muted">
-            {thisWeek.filter((session) => session.type === 'run').length} runs
+            {thisWeek.length} sessions · {Math.round(weekKm * 10) / 10} km
           </p>
         </Card>
 
@@ -325,49 +294,6 @@ export default function TrainingPage() {
           </p>
           <p className="mt-1 text-sm text-ink-muted">{sessions.items.length} sessions</p>
         </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Longest run</p>
-          <p className="mt-2 text-xxl font-semibold leading-none tabular-nums tracking-tight text-ink">
-            {Math.round(
-              (sessions.items.reduce(
-                (best, session) => Math.max(best, session.distanceKm ?? 0),
-                0,
-              )) *
-                10,
-            ) / 10}
-            <span className="ml-1 text-base font-medium text-ink-muted">km</span>
-          </p>
-          <p className="mt-1 text-sm text-ink-muted">personal best so far</p>
-        </Card>
-      </section>
-
-      <section className="mt-4" aria-labelledby="garmin-sync">
-        <h2 id="garmin-sync" className="sr-only">
-          Garmin sync
-        </h2>
-        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">Garmin</p>
-            <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
-              {garmin.item?.enabled
-                ? `Connected · last sync ${lastSyncText(garmin.item.lastSyncAt)}${
-                    garmin.item.lastImported ? ` · ${garmin.item.lastImported} new` : ''
-                  }`
-                : 'Connect your Personal API key in the Android app → Settings → Garmin. The key stays on the phone.'}
-            </p>
-          </div>
-          {garmin.item?.enabled ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={requestGarminSync}
-              disabled={requesting}
-            >
-              {requesting ? 'Requesting…' : 'Sync now via phone'}
-            </Button>
-          ) : null}
-        </Card>
       </section>
 
       <section className="mt-8" aria-labelledby="sessions">
@@ -375,7 +301,7 @@ export default function TrainingPage() {
           <h2 id="sessions" className="text-base font-medium text-ink">
             Sessions
           </h2>
-          <span className="text-sm text-ink-muted">{sorted.length} total · tap for detail</span>
+          <span className="text-sm text-ink-muted">{sorted.length} total</span>
         </div>
 
         {sessions.loading ? (
@@ -400,7 +326,7 @@ export default function TrainingPage() {
           />
         ) : (
           <ul className="space-y-2">
-            {sorted.map((session) => {
+            {sorted.slice(0, visible).map((session) => {
               const started = toDate(session.startedAt)
               return (
                 <li
@@ -440,14 +366,19 @@ export default function TrainingPage() {
                       ) : null}
                     </div>
                   </button>
-                  <Button variant="ghost" size="sm" onClick={() => remove(session)}>
-                    Remove
-                  </Button>
                 </li>
               )
             })}
           </ul>
         )}
+
+        {!sessions.loading && sorted.length > visible ? (
+          <div className="mt-4 flex justify-center">
+            <Button variant="secondary" size="sm" onClick={() => setVisible((count) => count + 20)}>
+              Show {Math.min(20, sorted.length - visible)} more
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       <Dialog
@@ -645,7 +576,19 @@ export default function TrainingPage() {
         </div>
       </Dialog>
 
-      <SessionDetail session={detail} onClose={() => setDetail(null)} />
+      <SessionDetail
+        session={detail}
+        onClose={() => setDetail(null)}
+        onDelete={
+          detail
+            ? () => {
+                const target = detail
+                setDetail(null)
+                void remove(target)
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }

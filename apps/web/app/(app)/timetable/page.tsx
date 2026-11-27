@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 
 import { ClassDialog } from '@/components/class-dialog'
+import { ActionMenu } from '@/components/action-menu'
 import {
   Badge,
   Button,
@@ -50,6 +51,7 @@ export default function TimetablePage() {
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDay, setSelectedDay] = useState(() => dayOfWeek(new Date()) - 1)
   const [dragId, setDragId] = useState<string | null>(null)
+  const [hintDismissed, setHintDismissed] = useState(false)
   const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null; kind: 'class' | 'event' }>({
     open: false,
     slot: null,
@@ -66,6 +68,14 @@ export default function TimetablePage() {
       // storage blocked; fall through to the default
     }
     setView(stored ?? (small ? 'day' : 'week'))
+  }, [])
+
+  useEffect(() => {
+    try {
+      setHintDismissed(localStorage.getItem('slot-timetable-hint') === 'done')
+    } catch {
+      // storage blocked; the hint stays visible
+    }
   }, [])
 
   const week = useMemo(
@@ -187,18 +197,22 @@ export default function TimetablePage() {
         title="Timetable"
         description="Your week repeats on its own. Times are wall-clock in your timetable timezone."
         actions={
-          <>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setDialog({ open: true, slot: null, kind: 'event' })}
-            >
-              Add event
-            </Button>
-            <Button size="sm" onClick={() => setDialog({ open: true, slot: null, kind: 'class' })}>
-              Add class
-            </Button>
-          </>
+          <ActionMenu
+            label="+ Add"
+            size="sm"
+            items={[
+              {
+                label: 'Class',
+                description: 'Repeats every week',
+                onSelect: () => setDialog({ open: true, slot: null, kind: 'class' }),
+              },
+              {
+                label: 'Event',
+                description: 'One-off or weekly',
+                onSelect: () => setDialog({ open: true, slot: null, kind: 'event' }),
+              },
+            ]}
+          />
         }
       />
 
@@ -265,10 +279,6 @@ export default function TimetablePage() {
             Settings
           </a>
           .
-        </p>
-      ) : !classes.loading && items.length === 0 ? (
-        <p className="mb-3 rounded-card border border-dashed border-border px-4 py-3 text-sm text-ink-muted">
-          Nothing scheduled yet. The grid stays here — add a class or an event and it fills in.
         </p>
       ) : null}
 
@@ -457,6 +467,12 @@ export default function TimetablePage() {
                     draggable
                     onDragStart={(event) => {
                       setDragId(slot.id)
+                      setHintDismissed(true)
+                      try {
+                        localStorage.setItem('slot-timetable-hint', 'done')
+                      } catch {
+                        // storage blocked; hide for this session only
+                      }
                       event.dataTransfer.setData('text/plain', slot.id)
                       event.dataTransfer.effectAllowed = 'move'
                     }}
@@ -498,9 +514,11 @@ export default function TimetablePage() {
                 )
               })}
             </div>
-            <p className="border-t border-border px-3 py-2 text-xs text-ink-muted">
-              Drag a class block to another day or time. Drops snap to 30 minutes.
-            </p>
+            {!hintDismissed ? (
+              <p className="border-t border-border px-3 py-2 text-xs text-ink-muted">
+                Drag a class block to another day or time. Drops snap to 30 minutes.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : (

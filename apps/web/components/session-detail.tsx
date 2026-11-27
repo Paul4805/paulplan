@@ -1,6 +1,6 @@
 'use client'
 
-import { Dialog } from '@/components/ui'
+import { Button, Dialog } from '@/components/ui'
 import { durationLabel, toDate } from '@/lib/time'
 import type { PtSession, PtType } from '@/lib/types'
 
@@ -22,9 +22,11 @@ function paceLabel(session: PtSession): string | null {
 export function SessionDetail({
   session,
   onClose,
+  onDelete,
 }: {
   session: PtSession | null
   onClose: () => void
+  onDelete?: () => void
 }) {
   if (!session) return null
   const started = toDate(session.startedAt)
@@ -63,6 +65,18 @@ export function SessionDetail({
               minute: '2-digit',
             })
           : 'Session detail'
+      }
+      footer={
+        <>
+          {onDelete ? (
+            <Button variant="ghost" className="mr-auto text-danger" onClick={onDelete}>
+              Delete
+            </Button>
+          ) : null}
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </>
       }
     >
       <dl className="grid grid-cols-2 gap-3">
