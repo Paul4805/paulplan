@@ -57,6 +57,7 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val sessions by vm.ptSessions.collectAsStateWithLifecycle()
     var addOpen by remember { mutableStateOf(false) }
     var detail by remember { mutableStateOf<PtSession?>(null) }
+    var deleteTarget by remember { mutableStateOf<PtSession?>(null) }
     var visibleCount by remember { mutableStateOf(12) }
 
     val weekStart = remember {
@@ -186,9 +187,18 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             session = session,
             onDismiss = { detail = null },
             onDelete = {
-                vm.deletePtSession(session.id)
+                deleteTarget = session
                 detail = null
             },
+        )
+    }
+
+    deleteTarget?.let { session ->
+        ConfirmDeleteDialog(
+            title = "Delete session?",
+            body = session.title ?: typeLabel(session.type),
+            onDismiss = { deleteTarget = null },
+            onConfirm = { vm.deletePtSession(session.id) },
         )
     }
 }
