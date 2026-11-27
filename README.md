@@ -2,7 +2,7 @@
 
 A minimal college schedule manager. Weekly timetable, tasks, study progress, and reminders — on the web and on Android, sharing one account and one dataset in real time.
 
-**Status:** v1 is implemented and verified at build level — see [Verification](#verification). Android runtime behaviour (alarms firing, reboot re-arm, permission prompts) still needs a pass on a real device; no device was attached during this build.
+**Status:** v1 is implemented and verified end to end against the live Firebase project **planner-9b0a2**: Google sign-in, Firestore reads and writes under the deployed rules, and an Android APK built with the same config. The only untested surface is Android runtime alarm behaviour on a physical phone.
 
 ## Verification
 

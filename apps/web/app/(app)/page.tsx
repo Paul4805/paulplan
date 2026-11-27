@@ -153,7 +153,9 @@ export default function TodayPage() {
       ) : null}
 
       <section aria-label="At a glance" className="grid grid-cols-2 gap-3 lg:grid-cols-4">        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Now</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+            {currentClass ? 'Now' : nextClass ? 'Up next' : 'Now'}
+          </p>
           {currentClass ? (
             <>
               <p className="mt-2 truncate text-base font-medium text-ink">
