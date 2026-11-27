@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -20,6 +21,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +66,7 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val alarms by vm.alarms.collectAsStateWithLifecycle()
 
     var refresh by remember { mutableIntStateOf(0) }
+    var settingsSection by rememberSaveable { mutableStateOf("account") }
     var name by remember(user?.uid) { mutableStateOf(user?.displayName ?: "") }
     var alarmOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AlarmItem?>(null) }
@@ -92,6 +96,29 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
+        ) {
+            listOf(
+                "account" to "Account",
+                "appearance" to "Appearance",
+                "alarms" to "Alarms",
+                "connections" to "Connections",
+                "term" to "Term",
+                "data" to "Data",
+            ).forEach { (value, label) ->
+                FilterChip(
+                    selected = settingsSection == value,
+                    onClick = { settingsSection = value },
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        if (settingsSection == "account") {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -120,6 +147,8 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+        if (settingsSection == "appearance") {
+        }
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -142,6 +171,8 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+        if (settingsSection == "alarms") {
+        }
             }
         }
 
@@ -198,11 +229,13 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                             )
                             TextButton(onClick = { deleteTarget = alarm }) { Text("Delete") }
                         }
+        }
                     }
                 }
             }
         }
 
+        if (settingsSection == "alarms") {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -276,7 +309,9 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 )
             }
         }
+        }
 
+        if (settingsSection == "connections") {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -339,6 +374,8 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+        if (settingsSection == "term") {
+        }
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -372,6 +409,8 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                         ),
                     ) { Text("Archive term") }
                 }
+        if (settingsSection == "data") {
+        }
             }
         }
 
@@ -395,6 +434,7 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     ),
                 ) { Text("Delete account") }
             }
+        }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

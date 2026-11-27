@@ -56,8 +56,8 @@ fun hours(minutes: Int): String = "%.1f h".format(minutes / 60.0)
 fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val sessions by vm.ptSessions.collectAsStateWithLifecycle()
     var addOpen by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<PtSession?>(null) }
     var detail by remember { mutableStateOf<PtSession?>(null) }
+    var visibleCount by remember { mutableStateOf(12) }
 
     val weekStart = remember {
         LocalDate.now()
@@ -91,27 +91,13 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             StatCard(
                 label = "This week",
                 value = hours(weekMinutes),
-                hint = "${week.size} sessions",
+                hint = "${week.size} sessions · %.1f km".format(weekKm),
                 modifier = Modifier.weight(1f),
             )
-            StatCard(
-                label = "Distance",
-                value = "%.1f km".format(weekKm),
-                hint = "this week",
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
             StatCard(
                 label = "All time",
                 value = hours(allMinutes),
                 hint = "${sessions.size} sessions",
-                modifier = Modifier.weight(1f),
-            )
-            StatCard(
-                label = "Disciplines",
-                value = sessions.map { it.type }.distinct().size.toString(),
-                hint = "types logged",
                 modifier = Modifier.weight(1f),
             )
         }
@@ -126,7 +112,7 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 "Log a run, a football match or a gym session. Strava archive import lives on the web.",
             )
         } else {
-            sessions.forEach { session ->
+            sessions.take(visibleCount).forEach { session ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,7 +158,15 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                             )
                         }
                     }
-                    TextButton(onClick = { deleteTarget = session }) { Text("Remove") }
+                }
+            }
+
+            if (sessions.size > visibleCount) {
+                TextButton(
+                    onClick = { visibleCount += 20 },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Show ${minOf(20, sessions.size - visibleCount)} more")
                 }
             }
         }
@@ -187,16 +181,14 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         )
     }
 
-    deleteTarget?.let { session ->
-        ConfirmDeleteDialog(
-            title = "Delete session?",
-            body = session.title ?: typeLabel(session.type),
-            onDismiss = { deleteTarget = null },
-            onConfirm = { vm.deletePtSession(session.id) },
-        )
-    }
-
     detail?.let { session ->
-        SessionDetailDialog(session = session, onDismiss = { detail = null })
+        SessionDetailDialog(
+            session = session,
+            onDismiss = { detail = null },
+            onDelete = {
+                vm.deletePtSession(session.id)
+                detail = null
+            },
+        )
     }
 }

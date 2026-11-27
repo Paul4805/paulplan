@@ -67,13 +67,13 @@ private data class StreakStats(val current: Int, val longest: Int, val total: In
 fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val study by vm.sessions.collectAsStateWithLifecycle()
     val tasks by vm.tasks.collectAsStateWithLifecycle()
-    val entries by vm.classes.collectAsStateWithLifecycle()
     val subjects by vm.subjects.collectAsStateWithLifecycle()
     val pt by vm.ptSessions.collectAsStateWithLifecycle()
     val health by vm.dailyHealth.collectAsStateWithLifecycle()
     val profile by vm.profile.collectAsStateWithLifecycle()
 
     var range by rememberSaveable { mutableStateOf("week") }
+    var section by rememberSaveable { mutableStateOf("academics") }
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
@@ -148,12 +148,6 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val avgHrv = recentHealth.mapNotNull { it.hrv }.takeIf { it.isNotEmpty() }?.average()
     val latestScore = recentHealth.firstOrNull()?.sleepScore
 
-    val balance = if (studyRange + ptRange > 0) {
-        "${Math.round(studyRange * 100f / (studyRange + ptRange))}%"
-    } else {
-        "—"
-    }
-
     fun rowsFor(pairs: List<Pair<String, Int>>, dots: List<String?>): List<BreakdownRow> {
         if (pairs.isEmpty()) return emptyList()
         val max = pairs.maxOf { it.second }.coerceAtLeast(1).toFloat()
@@ -197,6 +191,16 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+            listOf("academics" to "Academics", "training" to "Training").forEach { (value, label) ->
+                FilterChip(
+                    selected = section == value,
+                    onClick = { section = value },
+                    label = { Text(label) },
+                )
+            }
+        }
+
         Text(
             when (range) {
                 "month" -> "This month"
@@ -208,145 +212,121 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             letterSpacing = 1.2.sp,
         )
 
-        Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-            SectionLabel("Academics")
-
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-                StatCard(
-                    label = "Studied",
-                    value = hours(studyRange),
-                    hint = "total ${hours(studyAll)}",
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Tasks done",
-                    value = doneRange.toString(),
-                    hint = if (open > 0) "$open open" else "all clear",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-                StatCard(
-                    label = "Schedule",
-                    value = entries.size.toString(),
-                    hint = "classes and events",
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Subjects",
-                    value = subjects.size.toString(),
-                    hint = "active",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            ChartCard(
-                title = "Study",
-                total = hours(studyRange),
-                values = days.map { studyByDay[it] ?: 0 },
-                days = days,
-                color = MaterialTheme.colorScheme.primary,
-                emptyText = "No study logged in this range.",
-            )
-
-            BreakdownCard(
-                title = "By subject",
-                rows = subjectRows,
-                emptyText = "No study in this range.",
-            )
-
-            HeatmapCard(
-                title = "Study heatmap",
-                streak = studyStreak,
-                values = studyByDay,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-            SectionLabel("Physical training")
-
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-                StatCard(
-                    label = "Trained",
-                    value = hours(ptRange),
-                    hint = "total ${hours(ptAll)}",
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Sessions",
-                    value = ptRangeCount.toString(),
-                    hint = "${pt.size} all time",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-                StatCard(
-                    label = "Distance",
-                    value = "%.1f km".format(kmRange),
-                    hint = "this range",
-                    modifier = Modifier.weight(1f),
-                )
-                StatCard(
-                    label = "Balance",
-                    value = balance,
-                    hint = "study vs training",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            ChartCard(
-                title = "Training",
-                total = hours(ptRange),
-                values = days.map { ptByDay[it] ?: 0 },
-                days = days,
-                color = TRAINING_GREEN,
-                emptyText = "No training logged in this range.",
-            )
-
-            BreakdownCard(
-                title = "By type",
-                rows = typeRows,
-                emptyText = "No training in this range.",
-            )
-
-            HeatmapCard(
-                title = "Training heatmap",
-                streak = ptStreak,
-                values = ptByDay,
-                color = TRAINING_GREEN,
-            )
-
-            if (recentHealth.isNotEmpty()) {
+        if (section == "academics") {
+            Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
                     StatCard(
-                        label = "Sleep",
-                        value = avgSleep?.let { sleepLabel(it) } ?: "—",
-                        hint = latestScore?.let { "score $it" } ?: "7-day average",
+                        label = "Studied",
+                        value = hours(studyRange),
+                        hint = "total ${hours(studyAll)}",
                         modifier = Modifier.weight(1f),
                     )
                     StatCard(
-                        label = "Steps",
-                        value = avgSteps?.let { "%,.0f".format(it) } ?: "—",
-                        hint = "daily average",
-                        modifier = Modifier.weight(1f),
-                    )
-                    StatCard(
-                        label = "HRV",
-                        value = avgHrv?.let { "${Math.round(it)} ms" } ?: "—",
-                        hint = "last night",
+                        label = "Tasks done",
+                        value = doneRange.toString(),
+                        hint = if (open > 0) "$open open" else "all clear",
                         modifier = Modifier.weight(1f),
                     )
                 }
-            } else {
-                EmptyHint(
-                    "No recovery data",
-                    "Connect Garmin in Settings to sync sleep, steps and HRV.",
+
+                ChartCard(
+                    title = "Study",
+                    total = hours(studyRange),
+                    values = days.map { studyByDay[it] ?: 0 },
+                    days = days,
+                    color = MaterialTheme.colorScheme.primary,
+                    emptyText = "No study logged in this range.",
                 )
+
+                BreakdownCard(
+                    title = "By subject",
+                    rows = subjectRows,
+                    emptyText = "No study in this range.",
+                )
+
+                HeatmapCard(
+                    title = "Study heatmap",
+                    streak = studyStreak,
+                    values = studyByDay,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
+                Text(
+                    if (studyRange + ptRange > 0) {
+                        "Study ${Math.round(studyRange * 100f / (studyRange + ptRange))}% · training ${Math.round(ptRange * 100f / (studyRange + ptRange))}%"
+                    } else {
+                        "No study or training in this range"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
+                    StatCard(
+                        label = "Trained",
+                        value = hours(ptRange),
+                        hint = "total ${hours(ptAll)}",
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatCard(
+                        label = "Sessions",
+                        value = ptRangeCount.toString(),
+                        hint = "${pt.size} all time · %.1f km".format(kmRange),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                ChartCard(
+                    title = "Training",
+                    total = hours(ptRange),
+                    values = days.map { ptByDay[it] ?: 0 },
+                    days = days,
+                    color = TRAINING_GREEN,
+                    emptyText = "No training logged in this range.",
+                )
+
+                BreakdownCard(
+                    title = "By type",
+                    rows = typeRows,
+                    emptyText = "No training in this range.",
+                )
+
+                HeatmapCard(
+                    title = "Training heatmap",
+                    streak = ptStreak,
+                    values = ptByDay,
+                    color = TRAINING_GREEN,
+                )
+
+                if (recentHealth.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
+                        StatCard(
+                            label = "Sleep",
+                            value = avgSleep?.let { sleepLabel(it) } ?: "—",
+                            hint = latestScore?.let { "score $it" } ?: "7-day average",
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatCard(
+                            label = "Steps",
+                            value = avgSteps?.let { "%,.0f".format(it) } ?: "—",
+                            hint = "daily average",
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatCard(
+                            label = "HRV",
+                            value = avgHrv?.let { "${Math.round(it)} ms" } ?: "—",
+                            hint = "last night",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    EmptyHint(
+                        "No recovery data",
+                        "Connect Garmin in Settings to sync sleep, steps and HRV.",
+                    )
+                }
             }
         }
 
@@ -654,7 +634,11 @@ private fun BreakdownCard(
 }
 
 @Composable
-fun SessionDetailDialog(session: PtSession, onDismiss: () -> Unit) {
+fun SessionDetailDialog(
+    session: PtSession,
+    onDismiss: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
     val pace = session.distanceKm?.takeIf { it > 0 }?.let {
         val seconds = session.durationMinutes * 60.0 / it
         "%d:%02d /km".format((seconds / 60).toInt(), (seconds % 60).toInt())
@@ -693,6 +677,16 @@ fun SessionDetailDialog(session: PtSession, onDismiss: () -> Unit) {
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = onDelete?.let {
+            {
+                TextButton(
+                    onClick = {
+                        it()
+                        onDismiss()
+                    },
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            }
+        },
     )
 }
 

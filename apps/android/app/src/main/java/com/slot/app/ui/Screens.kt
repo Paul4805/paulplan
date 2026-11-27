@@ -96,6 +96,7 @@ fun TodayScreen(
 
     var taskOpen by remember { mutableStateOf(false) }
     var classOpen by remember { mutableStateOf(false) }
+    var entryKind by remember { mutableStateOf("class") }
 
     Column(
         modifier = modifier
@@ -125,8 +126,29 @@ fun TodayScreen(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                OutlinedButton(onClick = { taskOpen = true }) { Text("Task") }
-                Button(onClick = { classOpen = true }) { Text("Add") }
+                ActionMenuButton(
+                    label = "More",
+                    outlined = true,
+                    items = listOf(
+                        "Focus" to onOpenFocus,
+                        "Subjects" to onOpenSubjects,
+                        "Settings" to onOpenSettings,
+                    ),
+                )
+                ActionMenuButton(
+                    label = "+ New",
+                    items = listOf(
+                        "Task" to { taskOpen = true },
+                        "Class" to {
+                            entryKind = "class"
+                            classOpen = true
+                        },
+                        "Event" to {
+                            entryKind = "event"
+                            classOpen = true
+                        },
+                    ),
+                )
             }
         }
 
@@ -144,22 +166,7 @@ fun TodayScreen(
             StatCard(
                 label = "Open tasks",
                 value = open.size.toString(),
-                hint = if (dueSoonCount > 0) "$dueSoonCount due in 3 days" else "nothing due soon",
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
-            StatCard(
-                label = "Studied today",
-                value = "$studied min",
-                hint = "${sessions.count { isToday(it.startedAt) }} sessions",
-                modifier = Modifier.weight(1f),
-            )
-            StatCard(
-                label = "Classes",
-                value = todays.size.toString(),
-                hint = "today",
+                hint = "${if (dueSoonCount > 0) "$dueSoonCount due soon · " else ""}$studied min studied",
                 modifier = Modifier.weight(1f),
             )
         }
@@ -227,21 +234,6 @@ fun TodayScreen(
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
-        ) {
-            OutlinedButton(onClick = onOpenFocus, modifier = Modifier.weight(1f)) { Text("Focus") }
-            OutlinedButton(onClick = onOpenSubjects, modifier = Modifier.weight(1f)) { Text("Subjects") }
-            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("Settings") }
-        }
-
-        Text(
-            "Alarms fire on this phone, offline and after reboot. The web dashboard only shows them while a tab is open.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 
     if (taskOpen) {
@@ -257,6 +249,7 @@ fun TodayScreen(
     if (classOpen) {
         AddEntryDialog(
             subjects = subjects,
+            defaultKind = entryKind,
             onDismiss = { classOpen = false },
             onSave = { kind, subjectId, title, color, day, start, end, room, date ->
                 vm.addEntry(kind, subjectId, title, color, day, start, end, room, date)
@@ -274,6 +267,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
 
     var selectedOffset by rememberSaveable { mutableIntStateOf(0) }
     var classOpen by remember { mutableStateOf(false) }
+    var entryKind by remember { mutableStateOf("class") }
     var deleteTarget by remember { mutableStateOf<ClassSlot?>(null) }
     var newSubjectOpen by remember { mutableStateOf(false) }
 
@@ -305,10 +299,20 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Timetable", style = MaterialTheme.typography.headlineSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                OutlinedButton(onClick = { newSubjectOpen = true }) { Text("Subject") }
-                Button(onClick = { classOpen = true }) { Text("Add") }
-            }
+            ActionMenuButton(
+                label = "+ Add",
+                items = listOf(
+                    "Class" to {
+                        entryKind = "class"
+                        classOpen = true
+                    },
+                    "Event" to {
+                        entryKind = "event"
+                        classOpen = true
+                    },
+                    "Subject" to { newSubjectOpen = true },
+                ),
+            )
         }
 
         Row(
@@ -378,6 +382,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     if (classOpen) {
         AddEntryDialog(
             subjects = subjects,
+            defaultKind = entryKind,
             onDismiss = { classOpen = false },
             onSave = { kind, subjectId, title, color, day, start, end, room, date ->
                 vm.addEntry(kind, subjectId, title, color, day, start, end, room, date)
@@ -535,11 +540,6 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(Tokens.Space.s4),
     ) {
         Text("Focus", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Runs in a foreground service, so it keeps counting when you leave the app.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
             listOf("focus" to "Focus", "short" to "Break").forEach { (value, label) ->
@@ -635,11 +635,5 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
-
-        Text(
-            "Focus sessions are written to Firestore when the timer ends, so they appear on the web too.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

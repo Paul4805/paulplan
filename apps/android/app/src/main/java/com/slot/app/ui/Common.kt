@@ -16,11 +16,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,6 +103,35 @@ fun SectionTitle(text: String, trailing: (@Composable () -> Unit)? = null) {
     ) {
         Text(text = text, style = MaterialTheme.typography.titleMedium)
         trailing?.invoke()
+    }
+}
+
+@Composable
+fun ActionMenuButton(
+    label: String,
+    items: List<Pair<String, () -> Unit>>,
+    modifier: Modifier = Modifier,
+    outlined: Boolean = false,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        if (outlined) {
+            OutlinedButton(onClick = { expanded = true }) { Text(label) }
+        } else {
+            Button(onClick = { expanded = true }) { Text(label) }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            items.forEach { (text, action) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        expanded = false
+                        action()
+                    },
+                )
+            }
+        }
     }
 }
 
