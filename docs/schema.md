@@ -171,17 +171,17 @@ Sessions are append-only and immutable in practice; editing a past session rewri
 | `startedAt` | timestamp (UTC) | yes |
 | `durationMinutes` | int 0–1440 | yes |
 | `distanceKm` | number ≥ 0 \| null | no (runs only) |
-| `source` | `'manual' \| 'strava-csv'` | yes |
-| `stravaId` | string | no; dedupe key for imports |
+| `source` | `'manual' \| 'strava-csv' \| 'garmin-json'` | yes |
+| `externalId` | string | no; dedupe key for imports |
 | `notes` | string | no |
 
 ```json
 { "type": "run", "title": "Morning run", "startedAt": "<ts>",
-  "durationMinutes": 42, "distanceKm": 7.4, "source": "strava-csv",
-  "stravaId": "111", "createdAt": "<ts>", "updatedAt": "<ts>" }
+  "durationMinutes": 42, "distanceKm": 7.4, "source": "garmin-json",
+  "externalId": "12345678901", "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
-`stravaId` is unique per user in practice: the importer skips ids that already exist. There is no API sync because the OAuth token exchange needs a client secret and this app has no server; the CSV archive import is the secret-free path.
+`externalId` dedupes imports: the importer skips ids already present. Garmin's official API requires partner approval, and Strava's API is subscription-gated, so both importers read a **data export** (`summarizedActivities.json` / `activities.csv`) instead. No server, no client secret.
 
 ### `alarms` (definitions)
 

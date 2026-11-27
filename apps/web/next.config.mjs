@@ -7,6 +7,9 @@ const nextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   reactStrictMode: true,
+  // `next build` and `next dev` must not share .next: a build while dev is
+  // running leaves dev serving 404s for its own chunks.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
 }
 
 export default nextConfig

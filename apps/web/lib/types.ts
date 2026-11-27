@@ -73,8 +73,8 @@ export interface PtSession extends WithId {
   startedAt: Timestamp | null
   durationMinutes: number
   distanceKm?: number | null
-  source: 'manual' | 'strava-csv'
-  stravaId?: string | null
+  source: 'manual' | 'strava-csv' | 'garmin-json'
+  externalId?: string | null
   notes?: string
   createdAt?: Timestamp | null
   updatedAt?: Timestamp | null

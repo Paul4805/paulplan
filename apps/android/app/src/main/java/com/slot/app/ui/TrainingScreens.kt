@@ -150,7 +150,10 @@ fun TrainingScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                         Text(
                             text = buildString {
                                 session.startedAt?.let { append(dateLabel(it)) }
-                                if (session.source == "strava-csv") append(" · Strava")
+                                when (session.source) {
+                                    "strava-csv" -> append(" · Strava")
+                                    "garmin-json" -> append(" · Garmin")
+                                }
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

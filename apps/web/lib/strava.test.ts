@@ -16,21 +16,22 @@ describe('parseStravaCsv', () => {
 
     const result = parseStravaCsv(csv, 'km')
 
-    expect(result.runs).toHaveLength(2)
+    expect(result.sessions).toHaveLength(2)
     expect(result.skipped).toBe(1)
-    expect(result.runs[0]).toMatchObject({
-      stravaId: '111',
+    expect(result.sessions[0]).toMatchObject({
+      externalId: '111',
       title: 'Morning run',
       durationMinutes: 42,
       distanceKm: 7.4,
+      type: 'run',
     })
-    expect(result.runs[1]?.durationMinutes).toBe(32)
+    expect(result.sessions[1]?.durationMinutes).toBe(32)
   })
 
   it('converts miles to kilometres', () => {
     const csv = [header, '200,2026-11-20 07:00:00,"Long run",Run,3600,10,140'].join('\n')
     const result = parseStravaCsv(csv, 'mi')
-    expect(result.runs[0]?.distanceKm).toBeCloseTo(16.09, 1)
+    expect(result.sessions[0]?.distanceKm).toBeCloseTo(16.09, 1)
   })
 
   it('handles quoted commas and escaped quotes', () => {
@@ -39,11 +40,10 @@ describe('parseStravaCsv', () => {
       '300,2026-11-19 07:00:00,"Run, easy ""shakeout""",Run,1800,5,120',
     ].join('\n')
     const result = parseStravaCsv(csv, 'km')
-    expect(result.runs[0]?.title).toBe('Run, easy "shakeout"')
+    expect(result.sessions[0]?.title).toBe('Run, easy "shakeout"')
   })
 
   it('returns nothing for a file without the expected columns', () => {
-    const result = parseStravaCsv('foo,bar\n1,2', 'km')
-    expect(result.runs).toEqual([])
+    expect(parseStravaCsv('foo,bar\n1,2', 'km').sessions).toEqual([])
   })
 })

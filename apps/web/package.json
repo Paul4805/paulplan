@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "predev": "pnpm --filter @slot/design-tokens build",
-    "dev": "next dev",
+    "dev": "cross-env NEXT_DIST_DIR=.next-dev next dev",
     "prebuild": "pnpm --filter @slot/design-tokens build",
     "build": "next build",
     "lint": "next lint",
@@ -23,6 +23,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.21",
     "postcss": "^8.4.49",

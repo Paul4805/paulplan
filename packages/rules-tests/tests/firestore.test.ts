@@ -263,6 +263,12 @@ describe('physical training', () => {
         sessionData({ type: 'gym', distanceKm: null }),
       ),
     )
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), path('ptSessions/p3')),
+        sessionData({ source: 'garmin-json', externalId: 'g1' }),
+      ),
+    )
   })
 
   it('rejects unknown types and impossible durations', async () => {

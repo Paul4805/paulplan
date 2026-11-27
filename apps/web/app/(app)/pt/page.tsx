@@ -19,7 +19,9 @@ import {
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { createDoc, removeDoc, useCollection, userPath } from '@/lib/db'
-import { parseStravaCsv, type StravaRun } from '@/lib/strava'
+import { parseGarminJson } from '@/lib/garmin'
+import type { ImportedSession } from '@/lib/importers'
+import { parseStravaCsv } from '@/lib/strava'
 import { pad2, startOfWeek, toDate } from '@/lib/time'
 import { useToast } from '@/lib/toast'
 import { PT_TYPES, type PtSession, type PtType } from '@/lib/types'
@@ -78,9 +80,10 @@ export default function TrainingPage() {
     notes: '',
   })
 
+  const [source, setSource] = useState<'garmin-json' | 'strava-csv'>('garmin-json')
   const [unit, setUnit] = useState<'km' | 'mi'>('km')
   const [fileName, setFileName] = useState<string | null>(null)
-  const [imported, setImported] = useState<StravaRun[]>([])
+  const [imported, setImported] = useState<ImportedSession[]>([])
   const [importSkipped, setImportSkipped] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -173,9 +176,10 @@ export default function TrainingPage() {
     if (!file) return
 
     const text = await file.text()
-    const result = parseStravaCsv(text, unit)
+    const result =
+      source === 'garmin-json' ? parseGarminJson(text) : parseStravaCsv(text, unit)
     setFileName(file.name)
-    setImported(result.runs)
+    setImported(result.sessions)
     setImportSkipped(result.skipped)
   }
 
@@ -184,10 +188,10 @@ export default function TrainingPage() {
 
     const existing = new Set(
       sessions.items
-        .filter((session) => session.source === 'strava-csv' && session.stravaId)
-        .map((session) => session.stravaId as string),
+        .map((session) => session.externalId)
+        .filter((id): id is string => Boolean(id)),
     )
-    const fresh = imported.filter((run) => !existing.has(run.stravaId))
+    const fresh = imported.filter((run) => !existing.has(run.externalId))
     const duplicates = imported.length - fresh.length
 
     if (fresh.length === 0) {
@@ -201,13 +205,13 @@ export default function TrainingPage() {
         await Promise.all(
           group.map((run) =>
             createDoc(path, {
-              type: 'run',
+              type: run.type,
               title: run.title,
               startedAt: Timestamp.fromDate(run.startedAt),
               durationMinutes: run.durationMinutes,
               distanceKm: run.distanceKm,
-              source: 'strava-csv',
-              stravaId: run.stravaId,
+              source,
+              externalId: run.externalId,
               notes: '',
             }),
           ),
@@ -215,7 +219,7 @@ export default function TrainingPage() {
       }
 
       toast({
-        title: `Imported ${fresh.length} runs`,
+        title: `Imported ${fresh.length} sessions`,
         description: duplicates > 0 ? `${duplicates} duplicates skipped.` : undefined,
         tone: 'success',
       })
@@ -238,7 +242,7 @@ export default function TrainingPage() {
         actions={
           <>
             <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
-              Import Strava
+              Import
             </Button>
             <Button size="sm" onClick={() => setLogOpen(true)}>
               Log session
@@ -318,11 +322,11 @@ export default function TrainingPage() {
         ) : sorted.length === 0 ? (
           <EmptyState
             title="No training yet"
-            description="Log a run, a football match or a gym session. Or import your Strava archive."
+            description="Log a run, a football match or a gym session. Or import your Garmin export."
             action={
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
-                  Import Strava
+                  Import
                 </Button>
                 <Button size="sm" onClick={() => setLogOpen(true)}>
                   Log session
@@ -351,7 +355,11 @@ export default function TrainingPage() {
                     <p className="text-xs text-ink-muted">
                       {started ? started.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
                       {started ? ` · ${timeInput(started)}` : ''}
-                      {session.source === 'strava-csv' ? ' · Strava' : ''}
+                      {session.source === 'strava-csv'
+                        ? ' · Strava'
+                        : session.source === 'garmin-json'
+                          ? ' · Garmin'
+                          : ''}
                     </p>
                   </div>
                   <div className="text-right">
@@ -376,7 +384,7 @@ export default function TrainingPage() {
         open={logOpen}
         onClose={() => setLogOpen(false)}
         title="Log a session"
-        description="Football and gym live here too — no Strava required."
+        description="Football and gym live here too — no watch required."
         footer={
           <>
             <Button variant="secondary" onClick={() => setLogOpen(false)} disabled={busy}>
@@ -485,43 +493,63 @@ export default function TrainingPage() {
       <Dialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        title="Import from Strava"
-        description="Strava → Settings → Download or delete your account → Request your archive. Import activities.csv from it."
+        title="Import training"
+        description="Garmin: Account → Data Management → Export Your Data, then pick summarizedActivities.json from the archive."
         footer={
           <>
             <Button variant="secondary" onClick={() => setImportOpen(false)} disabled={busy}>
               Cancel
             </Button>
             <Button onClick={runImport} disabled={busy || imported.length === 0}>
-              {busy ? 'Importing…' : `Import ${imported.length || ''} runs`}
+              {busy ? 'Importing…' : `Import ${imported.length || ''} sessions`}
             </Button>
           </>
         }
       >
         <div className="space-y-3">
-          <Field label="Distance unit in your export" htmlFor="import-unit">
+          <Field label="Source" htmlFor="import-source">
             <Select
-              id="import-unit"
-              value={unit}
+              id="import-source"
+              value={source}
               onChange={(event) => {
-                const next = event.target.value as 'km' | 'mi'
-                setUnit(next)
+                setSource(event.target.value as 'garmin-json' | 'strava-csv')
                 if (fileRef.current) fileRef.current.value = ''
                 setImported([])
                 setFileName(null)
               }}
             >
-              <option value="km">Kilometres</option>
-              <option value="mi">Miles</option>
+              <option value="garmin-json">Garmin export (summarizedActivities.json)</option>
+              <option value="strava-csv">Strava export (activities.csv)</option>
             </Select>
           </Field>
 
-          <Field label="activities.csv" htmlFor="import-file">
+          {source === 'strava-csv' ? (
+            <Field label="Distance unit in your export" htmlFor="import-unit">
+              <Select
+                id="import-unit"
+                value={unit}
+                onChange={(event) => {
+                  setUnit(event.target.value as 'km' | 'mi')
+                  if (fileRef.current) fileRef.current.value = ''
+                  setImported([])
+                  setFileName(null)
+                }}
+              >
+                <option value="km">Kilometres</option>
+                <option value="mi">Miles</option>
+              </Select>
+            </Field>
+          ) : null}
+
+          <Field
+            label={source === 'garmin-json' ? 'summarizedActivities.json' : 'activities.csv'}
+            htmlFor="import-file"
+          >
             <input
               id="import-file"
               ref={fileRef}
               type="file"
-              accept=".csv,text/csv"
+              accept={source === 'garmin-json' ? '.json,application/json' : '.csv,text/csv'}
               onChange={onFile}
               className="w-full rounded-chip border border-border bg-surface px-3 py-2 text-sm text-ink file:mr-3 file:rounded-chip file:border-0 file:bg-accent-subtle file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent-text"
             />
@@ -531,7 +559,7 @@ export default function TrainingPage() {
             <div className="rounded-chip border border-border bg-canvas p-3 text-sm">
               <p className="font-medium text-ink">{fileName}</p>
               <p className="mt-1 text-ink-muted">
-                {imported.length} runs ready, {importSkipped} non-run rows skipped.
+                {imported.length} sessions ready, {importSkipped} rows skipped.
               </p>
               <p className="mt-1 text-xs text-ink-muted">
                 Duplicates already in Slot are skipped on import.
@@ -540,8 +568,9 @@ export default function TrainingPage() {
           ) : null}
 
           <p className="text-xs leading-relaxed text-ink-muted">
-            Live Strava sync needs a client secret, which needs a server. Slot runs without one, so
-            this import is the honest path — you can re-run it any time.
+            Garmin&apos;s official API needs partner approval, and Strava&apos;s API is now
+            subscription-gated. The data export is the practical path: no server, no secret, and
+            re-running it is safe.
           </p>
         </div>
       </Dialog>

@@ -1,25 +1,10 @@
 /**
- * Parses a Strava "activities.csv" export into run sessions.
+ * Parses a Strava "activities.csv" export into training sessions.
  *
- * Why a CSV import instead of an API sync: the Strava OAuth token exchange
- * needs a client secret, and this app has no server (Spark plan, static
- * hosting). Putting the secret in the browser bundle would leak it to anyone.
- * Strava lets you download your full archive, so this is the honest,
- * secret-free path. Live sync becomes possible if a backend is ever added.
+ * Kept as a no-server fallback. The Garmin importer is the primary path now;
+ * both normalise to the same ImportedSession shape.
  */
-
-export interface StravaRun {
-  stravaId: string
-  title: string
-  startedAt: Date
-  durationMinutes: number
-  distanceKm: number | null
-}
-
-export interface StravaImport {
-  runs: StravaRun[]
-  skipped: number
-}
+import type { ImportedSession } from './importers'
 
 function parseCsv(text: string): string[][] {
   const rows: string[][] = []
@@ -88,9 +73,12 @@ function toKm(value: string, unit: 'km' | 'mi'): number | null {
   return unit === 'mi' ? Math.round(number * 1.60934 * 100) / 100 : Math.round(number * 100) / 100
 }
 
-export function parseStravaCsv(text: string, unit: 'km' | 'mi' = 'km'): StravaImport {
+export function parseStravaCsv(
+  text: string,
+  unit: 'km' | 'mi' = 'km',
+): { sessions: ImportedSession[]; skipped: number } {
   const rows = parseCsv(text)
-  if (rows.length < 2) return { runs: [], skipped: 0 }
+  if (rows.length < 2) return { sessions: [], skipped: 0 }
 
   const header = rows[0]!.map((cell) => cell.trim().toLowerCase())
   const column = (name: string): number => header.indexOf(name.toLowerCase())
@@ -103,10 +91,10 @@ export function parseStravaCsv(text: string, unit: 'km' | 'mi' = 'km'): StravaIm
   const distanceIndex = column('Distance')
 
   if (idIndex < 0 || dateIndex < 0 || typeIndex < 0 || timeIndex < 0) {
-    return { runs: [], skipped: rows.length - 1 }
+    return { sessions: [], skipped: rows.length - 1 }
   }
 
-  const runs: StravaRun[] = []
+  const sessions: ImportedSession[] = []
   let skipped = 0
 
   for (const row of rows.slice(1)) {
@@ -120,14 +108,15 @@ export function parseStravaCsv(text: string, unit: 'km' | 'mi' = 'km'): StravaIm
       continue
     }
 
-    runs.push({
-      stravaId: id,
+    sessions.push({
+      externalId: id,
       title: (row[nameIndex] ?? '').trim() || 'Run',
       startedAt,
       durationMinutes: Math.min(minutes, 1440),
       distanceKm: distanceIndex >= 0 ? toKm(row[distanceIndex] ?? '', unit) : null,
+      type: 'run',
     })
   }
 
-  return { runs, skipped }
+  return { sessions, skipped }
 }
