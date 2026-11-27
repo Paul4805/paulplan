@@ -50,7 +50,14 @@ export default function TimetablePage() {
 
   useEffect(() => {
     const small = window.matchMedia('(max-width: 639px)').matches
-    setView(small ? 'day' : 'month')
+    let stored: 'month' | 'week' | 'day' | null = null
+    try {
+      const raw = localStorage.getItem('slot-timetable-view')
+      if (raw === 'month' || raw === 'week' || raw === 'day') stored = raw
+    } catch {
+      // storage blocked; fall through to the default
+    }
+    setView(stored ?? (small ? 'day' : 'week'))
   }, [])
 
   const week = useMemo(() => weekDates(anchor, 1), [anchor])
@@ -184,11 +191,18 @@ export default function TimetablePage() {
         <Segmented
           label="Timetable view"
           value={view}
-          onChange={setView}
+          onChange={(next) => {
+            setView(next)
+            try {
+              localStorage.setItem('slot-timetable-view', next)
+            } catch {
+              // non-fatal
+            }
+          }}
           options={[
-            { value: 'month', label: 'Month' },
             { value: 'week', label: 'Week' },
             { value: 'day', label: 'Day' },
+            { value: 'month', label: 'Month' },
           ]}
         />
       </div>
