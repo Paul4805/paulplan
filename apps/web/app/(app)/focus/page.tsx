@@ -154,23 +154,31 @@ export default function FocusPage() {
         typeof Notification !== 'undefined' &&
         Notification.permission === 'granted'
       ) {
+        const alertTitle = wasFocus ? 'Focus finished' : 'Break over'
+        const alertBody = wasFocus
+          ? `${minutes} minutes logged. Take a short break.`
+          : 'Ready for another focus session.'
         try {
-          new Notification(wasFocus ? 'Focus finished' : 'Break over', {
-            body: wasFocus
-              ? `${minutes} minutes logged. Take a short break.`
-              : 'Ready for another focus session.',
-            tag: 'slot-pomodoro',
-          })
+          new Notification(alertTitle, { body: alertBody, tag: 'slot-pomodoro' })
         } catch {
-          // Mobile browsers may require the service worker; the in-app banner
-          // and the Android notification still cover it.
+          // Mobile browsers may forbid the constructor; use the SW instead.
+          if ('serviceWorker' in navigator) {
+            void navigator.serviceWorker.ready
+              .then((registration) =>
+                registration.showNotification(alertTitle, {
+                  body: alertBody,
+                  tag: 'slot-pomodoro',
+                }),
+              )
+              .catch(() => undefined)
+          }
         }
       }
 
       if (!wasFocus) return
 
       try {
-        const ended = new Date()
+        const ended = completed.endsAt !== null ? new Date(completed.endsAt) : new Date()
         const started = new Date(ended.getTime() - minutes * 60_000)
         await createDoc(userPath(user.uid, 'studySessions'), {
           subjectId: completed.subjectId || null,
