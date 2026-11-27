@@ -79,7 +79,11 @@ fun TodayScreen(
     val current = todays.firstOrNull { nowMinutes in it.startMinutes until it.endMinutes }
     val next = todays.firstOrNull { it.startMinutes > nowMinutes }
     val open = tasks.filter { it.status != "done" }
-    val dueSoon = open.sortedBy { it.dueAt?.time ?: Long.MAX_VALUE }.take(5)
+    val upNext = open.sortedBy { it.dueAt?.time ?: Long.MAX_VALUE }.take(5)
+    val dueSoonCount = open.count { task ->
+        val due = task.dueAt ?: return@count false
+        due.time <= System.currentTimeMillis() + 3 * 24 * 60 * 60 * 1000L
+    }
     val studied = sumMinutes(sessions)
     val minuteOfDay = nowMinutes
 
@@ -131,9 +135,9 @@ fun TodayScreen(
                 modifier = Modifier.weight(1f),
             )
             StatCard(
-                label = "Due soon",
-                value = dueSoon.size.toString(),
-                hint = if (open.isEmpty()) "Nothing open" else "${open.size} open",
+                label = "Open tasks",
+                value = open.size.toString(),
+                hint = if (dueSoonCount > 0) "$dueSoonCount due in 3 days" else "nothing due soon",
                 modifier = Modifier.weight(1f),
             )
         }
@@ -199,11 +203,11 @@ fun TodayScreen(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        SectionTitle("Due soon")
-        if (dueSoon.isEmpty()) {
-            EmptyHint("Nothing due", "The next few days are clear.")
+        SectionTitle("Open tasks")
+        if (upNext.isEmpty()) {
+            EmptyHint("No open tasks", "Everything is done. Add one when something comes up.")
         } else {
-            dueSoon.forEach { task ->
+            upNext.forEach { task ->
                 TaskRow(
                     task = task,
                     subject = task.subjectId?.let { subjectById[it] },

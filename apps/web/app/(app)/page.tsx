@@ -108,6 +108,20 @@ export default function TodayPage() {
       .slice(0, 5)
   }, [openTasks, today])
 
+  // Anything open, soonest deadline first, undated tasks last. A task with no
+  // deadline must still be visible on Today, not only in the Tasks page.
+  const upNext = useMemo(
+    () =>
+      [...openTasks]
+        .sort(
+          (a, b) =>
+            (a.dueAt?.toMillis() ?? Number.MAX_SAFE_INTEGER) -
+            (b.dueAt?.toMillis() ?? Number.MAX_SAFE_INTEGER),
+        )
+        .slice(0, 5),
+    [openTasks],
+  )
+
   const overdueCount = openTasks.filter((task) => {
     const due = toDate(task.dueAt)
     return due !== null && due.getTime() < now.getTime()
@@ -316,10 +330,10 @@ export default function TodayPage() {
           )}
         </section>
 
-        <section aria-labelledby="due-soon">
+        <section aria-labelledby="open-tasks">
           <div className="mb-3 flex items-center justify-between">
-            <h2 id="due-soon" className="text-base font-medium text-ink">
-              Due soon
+            <h2 id="open-tasks" className="text-base font-medium text-ink">
+              Open tasks
             </h2>
             <Link href="/tasks" className="text-sm text-ink-muted hover:text-ink">
               All tasks
@@ -331,10 +345,10 @@ export default function TodayPage() {
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />
             </div>
-          ) : dueSoon.length === 0 ? (
+          ) : openTasks.length === 0 ? (
             <EmptyState
-              title="Nothing due"
-              description="The next three days are clear. Add a task when something comes up."
+              title="No open tasks"
+              description="Everything is done. Add a task when something comes up."
               action={
                 <Button size="sm" variant="secondary" onClick={() => setTaskOpen(true)}>
                   New task
@@ -343,7 +357,7 @@ export default function TodayPage() {
             />
           ) : (
             <ul className="space-y-2">
-              {dueSoon.map((task) => {
+              {upNext.map((task) => {
                 const due = formatDue(task.dueAt)
                 const subject = task.subjectId ? subjectById.get(task.subjectId) : undefined
                 return (
@@ -364,10 +378,17 @@ export default function TodayPage() {
                       <Badge tone={due.tone === 'danger' ? 'danger' : due.tone === 'warning' ? 'warning' : 'neutral'}>
                         {due.label}
                       </Badge>
-                    ) : null}
+                    ) : (
+                      <Badge tone="neutral">No deadline</Badge>
+                    )}
                   </li>
                 )
               })}
+              {openTasks.length > upNext.length ? (
+                <li className="pt-1 text-center text-xs text-ink-muted">
+                  +{openTasks.length - upNext.length} more open
+                </li>
+              ) : null}
             </ul>
           )}
         </section>
