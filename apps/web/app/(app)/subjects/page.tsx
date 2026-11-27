@@ -216,12 +216,12 @@ function SubjectDetail({
             Study, last 7 days
           </h2>
           <Card className="p-5">
-            <div className="flex h-32 items-end gap-2">
+            <div className="flex h-32 items-stretch gap-2">
               {chart.days.map((day, index) => {
                 const value = chart.totals[index] ?? 0
                 const height = Math.round((value / chart.max) * 100)
                 return (
-                  <div key={day.toISOString()} className="flex flex-1 flex-col items-center gap-2">
+                  <div key={day.toISOString()} className="flex h-full flex-1 flex-col items-center gap-2">
                     <div className="flex w-full flex-1 items-end">
                       <div
                         className={cn(

@@ -182,12 +182,12 @@ export default function StatsPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <Card className="p-5">
             <p className="text-sm font-medium text-ink">Study, last 14 days</p>
-            <div className="mt-4 flex h-28 items-end gap-1.5">
+            <div className="mt-4 flex h-28 items-stretch gap-1.5">
               {days.map((day) => {
                 const value = studyByDay.get(dayKey(day)) ?? 0
                 return (
-                  <div key={day.toISOString()} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="flex h-full w-full items-end">
+                  <div key={day.toISOString()} className="flex h-full flex-1 flex-col items-center gap-1">
+                    <div className="flex w-full flex-1 items-end">
                       <div
                         className={cn('w-full rounded-t-[3px]', value > 0 ? 'bg-accent' : 'bg-border')}
                         style={{ height: `${barHeight(value, studyMax)}%` }}
@@ -273,12 +273,12 @@ export default function StatsPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <Card className="p-5">
             <p className="text-sm font-medium text-ink">Training, last 14 days</p>
-            <div className="mt-4 flex h-28 items-end gap-1.5">
+            <div className="mt-4 flex h-28 items-stretch gap-1.5">
               {days.map((day) => {
                 const value = ptByDay.get(dayKey(day)) ?? 0
                 return (
-                  <div key={day.toISOString()} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="flex h-full w-full items-end">
+                  <div key={day.toISOString()} className="flex h-full flex-1 flex-col items-center gap-1">
+                    <div className="flex w-full flex-1 items-end">
                       <div
                         className={cn(
                           'w-full rounded-t-[3px]',
