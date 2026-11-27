@@ -372,7 +372,7 @@ export default function TodayPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-ink">{task.title}</p>
-                      <p className="text-xs text-ink-muted">{subject?.name ?? 'No subject'}</p>
+                      <p className="truncate text-xs text-ink-muted">{subject?.name ?? 'No subject'}</p>
                     </div>
                     {due ? (
                       <Badge tone={due.tone === 'danger' ? 'danger' : due.tone === 'warning' ? 'warning' : 'neutral'}>

@@ -143,8 +143,16 @@ fun ProgressBar(value: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun SubjectLine(subject: Subject?, fallback: String = "No subject") {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+fun SubjectLine(
+    subject: Subject?,
+    fallback: String = "No subject",
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
+    ) {
         if (subject != null) {
             Box(
                 Modifier
@@ -157,6 +165,8 @@ fun SubjectLine(subject: Subject?, fallback: String = "No subject") {
             text = subject?.name ?: fallback,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -209,12 +219,19 @@ fun TaskRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                if (subject != null) SubjectLine(subject)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
+            ) {
+                if (subject != null) {
+                    SubjectLine(subject, modifier = Modifier.weight(1f, fill = false))
+                }
                 Text(
                     text = dateLabel(task.dueAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
