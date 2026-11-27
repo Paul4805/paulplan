@@ -67,7 +67,7 @@ git config --global core.longpaths true
 
 ## 2. Firebase
 
-1. The project already exists as **planner-9b0a2** (`.firebaserc` points at it). No billing account.
+1. Create a Firebase project on the **Spark** plan (no billing account). The author's live instance is `planner-9b0a2`, which `.firebaserc` points at; a fork should change it (see `docs/fork.md`).
 2. **Authentication → Sign-in method**: enable **Google** and **Email/Password**.
 3. **Project settings → Your apps → Web**: register an app, copy the config block into `apps/web/.env.local` (see `apps/web/.env.example`). The same values go into `apps/android/local.properties` (see step 3.5).
 4. **Project settings → Your apps → Android**: register `com.slot.app`. Use the debug SHA-1 from `.\gradlew.bat signingReport` (also required for Google sign-in on Android).
@@ -76,7 +76,7 @@ git config --global core.longpaths true
 
 ```powershell
 firebase login
-firebase use --add      # select planner-9b0a2, alias "default"
+firebase use --add      # select your project, alias "default"
 ```
 
 ---
@@ -107,15 +107,15 @@ pnpm verify
 cd apps\android
 ```
 
-Before the first Android build, create `apps/android/local.properties` with the Firebase web app values
+Before the first Android build, create `apps/android/local.properties` (or copy `local.properties.example`) with the Firebase web app values
 (the same ones as `.env.local`) plus the OAuth web client id:
 
 ```properties
 sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
 firebase.apiKey=...
 firebase.applicationId=1:...:android:...
-firebase.projectId=planner-9b0a2
-firebase.storageBucket=planner-9b0a2.firebasestorage.app
+firebase.projectId=your-project-id
+firebase.storageBucket=your-project-id.firebasestorage.app
 firebase.senderId=...
 google.webClientId=...apps.googleusercontent.com
 ```

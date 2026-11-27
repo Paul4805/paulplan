@@ -1,4 +1,4 @@
-/* Slot service worker.
+/* PaulPlan service worker.
  *
  * Scope: cache the app shell so a reload while offline still boots, and cache
  * Next's hashed static assets after first use. It deliberately does not touch

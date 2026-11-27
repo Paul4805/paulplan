@@ -1,6 +1,6 @@
 # Data contract — v1
 
-This is the language-neutral source of truth for the Firestore schema. `packages/shared` mirrors it in zod for TypeScript; the Android data layer mirrors it by hand. `firestore.rules` enforces the required fields listed here, and `packages/rules-tests` proves the rules behave.
+This document is the language-neutral contract for the Firestore schema. `firestore.rules` enforces the required fields listed here, `packages/rules-tests` proves the rules behave, and the Android data layer mirrors it by hand. TypeScript types live in `apps/web/lib/types.ts`.
 
 **Constraints baked into this document:** Spark plan, no Cloud Functions, no FCM, no server-side rendering. Every write in the system comes from a client, under the user's own auth.
 
@@ -12,7 +12,7 @@ This is the language-neutral source of truth for the Firestore schema. `packages
 - **IDs.** Client-generated, 20-character URL-safe random strings (`Firestore` auto-ids are fine). Exceptions: `alarmState` uses a deterministic derived id (see §7).
 - **Timestamps.** Absolute moments are Firestore `Timestamp` (UTC). Recurring wall-clock values are integers (see §6). Clients never write a literal date for `updatedAt`; they write `serverTimestamp()`, and rules reject anything else.
 - **`createdAt` / `updatedAt`.** On every content document. `createdAt` is set once; `updatedAt` on every write. Rules require `updatedAt == request.time`.
-- **Optional fields** are omitted, not set to `null`, except `tasks.dueAt` and `tasks.subjectId`, where `null` is meaningful ("no deadline", "no subject").
+- **Optional fields** are omitted, not set to `null`, except `tasks.dueAt`, `tasks.subjectId`, the unused half of `classes.subjectId` / `classes.title`, and `ptSessions.distanceKm`, where `null` is meaningful.
 - **Unknown fields are permitted** by the rules for forward compatibility. Clients must not rely on them.
 - **`schemaVersion`** lives on `users/{uid}/meta/profile`. Bump it when a migration is needed; migrations run client-side on first launch after an update.
 - **Colours** are token names (`indigo`, `sky`, `violet`, `amber`, `rose`, `emerald`), never hex values. The palette lives in `packages/design-tokens/tokens.json`.
@@ -76,6 +76,25 @@ One document. `timezone` is the device's IANA zone at last save, used as the def
   "schemaVersion": 1, "updatedAt": "<ts>" }
 ```
 
+### `meta/garmin`
+
+Sync status only. The Garmin Personal API key lives on the Android device and is never written here.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `enabled` | bool | set by the phone after a successful sync |
+| `lastSyncAt` | timestamp | server time |
+| `lastImported` | int | sessions added by the last sync |
+| `requestedAt` | timestamp | written by the web's "Sync now via phone" button; the phone watches it |
+| `updatedAt` | timestamp | required by rules |
+
+```json
+{ "enabled": true, "lastSyncAt": "<ts>", "lastImported": 3,
+  "requestedAt": "<ts>", "updatedAt": "<ts>" }
+```
+
+The phone must not rewrite `requestedAt` when it syncs, or its own listener would retrigger. It records the handled timestamp locally instead.
+
 ### `subjects`
 
 | Field | Type | Required |
@@ -96,25 +115,31 @@ One document. `timezone` is the device's IANA zone at last save, used as the def
   "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
-### `classes` (timetable slots)
+### `classes` (timetable entries)
+
+One collection for both classes and free-standing events, because both are weekly wall-clock entries. A class links to a subject; an event carries its own title and colour.
 
 | Field | Type | Required |
 | --- | --- | --- |
-| `subjectId` | string | yes |
+| `kind` | `'class' \| 'event'` | no (defaults to class for older docs) |
+| `subjectId` | string \| null | when `kind = class` |
+| `title` | string, 1–80 chars \| null | when `kind = event` |
 | `dayOfWeek` | int 1–7 (Mon = 1) | yes |
 | `startMinutes` | int 0–1439, minutes from local midnight | yes |
 | `endMinutes` | int > `startMinutes`, ≤ 1440 | yes |
 | `room` | string | no |
 | `teacher` | string | no |
-| `colorOverride` | enum | no |
+| `colorOverride` | enum | no; events use it, classes inherit the subject colour |
+| `notes` | string | no |
 | `termId` | string | no |
 
 ```json
-{ "subjectId": "cs301", "dayOfWeek": 2, "startMinutes": 540, "endMinutes": 630,
-  "room": "LT-4", "teacher": "Dr. Rao", "createdAt": "<ts>", "updatedAt": "<ts>" }
+{ "kind": "event", "title": "Study group", "colorOverride": "violet",
+  "dayOfWeek": 4, "startMinutes": 1080, "endMinutes": 1140,
+  "room": "Library", "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
-`startMinutes: 540` renders as 09:00 in the user's zone. Class slots carry no date: they repeat weekly for the term.
+Rules require **either** a non-empty `subjectId` **or** a non-empty `title`, so a malformed entry cannot exist. `startMinutes: 540` renders as 09:00 in the entry's timezone. Entries carry no date: they repeat weekly.
 
 ### `terms` (optional)
 
@@ -244,11 +269,13 @@ Data volume per user is small (hundreds of documents), so screens subscribe to w
 | Screen | Collections listened |
 | --- | --- |
 | Today | `classes`, `tasks`, `alarms`, `alarmState`, `studySessions` (filtered to today/this week in memory) |
-| Timetable | `subjects`, `classes`, `terms` |
+| Timetable | `subjects`, `classes`, `tasks` (deadlines in the month grid) |
 | Tasks | `tasks`, `subjects` |
 | Subject detail | `subjects`, `tasks`, `studySessions` |
 | Focus | `subjects`, `studySessions` |
-| Settings | `meta/profile` |
+| Training | `ptSessions`, `meta/garmin` (status doc) |
+| Stats | `studySessions`, `tasks`, `classes`, `subjects`, `ptSessions` |
+| Settings | `meta/profile`, `alarms` |
 
 One repository object owns each listener for the process lifetime; screens subscribe to derived state. No screen opens a duplicate listener.
 

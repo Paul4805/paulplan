@@ -1,181 +1,163 @@
 # PaulPlan
 
-A minimal college schedule manager. Weekly timetable, tasks, study progress, and reminders — on the web and on Android, sharing one account and one dataset in real time.
+A minimal, offline-first college schedule manager: weekly timetable, tasks, study sessions, physical training, and alarms — on the web and on Android, sharing one account and one dataset in real time.
 
-**Status:** v1 is implemented and verified end to end against the live Firebase project **planner-9b0a2**: Google sign-in, Firestore reads and writes under the deployed rules, and an Android APK built with the same config. The only untested surface is Android runtime alarm behaviour on a physical phone.
-
-## Verification
-
-| Check | Command | Result |
-| --- | --- | --- |
-| Design tokens generate | `pnpm tokens` | 3 artefacts, web + Kotlin |
-| Web unit tests (time, alarms, Strava CSV, Garmin JSON) | `pnpm test` | 18 passed |
-| Web typecheck + lint | `pnpm typecheck`, `pnpm lint` | clean |
-| Web static export | `pnpm build` | 11 routes exported |
-| Firestore rules | `pnpm test:rules` | 23 passed against the emulator |
-| Android compile | `.\gradlew.bat assembleDebug` | `app-debug.apk`, 14.7 MB |
-| Android lint | `.\gradlew.bat :app:lintDebug` | 0 errors, 44 warnings (version/deprecation noise) |
-
-`pnpm verify` runs tokens, web tests, typecheck, lint, and the emulator rules tests in one command.
+Built by [J Paul Masillamni](https://github.com/Paul4805). Named for him, designed to be forked.
 
 ---
 
-## Scope (v1)
+## What it does
 
-| Area | Included |
-| --- | --- |
-| Timetable | Weekly recurring classes (subject, room, teacher, day, start/end, color), day + week views |
-| Tasks | Deadline, linked subject, priority, status (todo/doing/done), list + kanban |
-| Study | Per-subject progress, session logging, weekly hours chart, Pomodoro timer |
-| Training | Runs, football, gym and other sessions; automatic Garmin sync via Personal API key on the phone; export import fallback |
-| Stats | Academic and training totals, 14-day trends, per-subject and per-type breakdowns |
-| Reminders | In-page reminders on web; exact local alarms on Android |
-| Auth | Google + email/password, one account across both clients |
-| Sync | Firestore realtime + offline persistence on both clients |
+| | |
+|---|---|
+| **Timetable** | Weekly classes and free-standing events (talks, meetings, church, football). Month grid, week hour-grid, day list. Each entry carries a colour. |
+| **Tasks** | Deadlines, subject links, priorities, todo/doing/done; list and drag-and-drop kanban on the web. |
+| **Study** | Pomodoro timer that survives a closed tab, session logging, per-subject progress and weekly targets. |
+| **Training** | Runs, football, gym. Automatic Garmin sync from the Android app, plus a Garmin export importer and a Strava CSV fallback. |
+| **Stats** | Academic and training totals, 14-day trends, study-vs-training balance, per-subject and per-type breakdowns. |
+| **Alarms** | Exact local alarms on Android (`setAlarmClock`), full-screen over the lock screen, snooze/dismiss synced back to Firestore. Web shows in-page reminders while a tab is open. |
+| **Sync** | Firestore realtime listeners on both clients, IndexedDB/native cache for offline writes. No custom queue. |
+| **Auth** | Google and email/password, one account on both clients. |
 
-Phase 2 (after core works): attendance tracker, exam countdown, GPA calculator, Android home-screen widget, CSV export, focus mode.
+## Stack (and the constraints that shaped it)
 
-## Hard constraints
+- **Web:** Next.js 14 App Router, TypeScript, Tailwind, static export, Firebase Hosting.
+- **Android:** Kotlin, Jetpack Compose, Material 3, min SDK 26 / target 35, sideloaded APK.
+- **Backend:** Firebase Auth + Firestore (Spark plan), security rules, no Cloud Functions.
+- **Notifications:** Android `AlarmManager` + local notifications. No FCM, no web push.
 
-These are deliberate, not placeholders. Changing one changes the architecture.
+Those constraints are deliberate:
 
-- **Firebase Spark only.** No Cloud Functions, no Blaze, no billing card.
-- **No FCM in v1.** Without a server there is no sender. Web push is out; Android alarms are local.
-- **Android is sideload-only.** No Play Console, no store listing, no release-signing ceremony. Debug builds via `adb install`.
-- **Web is a static export.** Firebase Hosting on Spark cannot run Next SSR. Every page is client-rendered; data comes from the Firestore client SDK.
-- **Firestore is the only source of truth.** Local state is view state only. There is no custom offline queue — the Firestore SDK's cache *is* the queue.
-- **Security rules are mandatory.** The web build exposes the Firebase client config publicly; rules are the only access control. Rules tests run in the emulator.
-- **One accent color:** `#6366F1`. Neutral canvas, 1px hairline borders, 12–16px radii, no gradients.
-- **Timestamps:** absolute moments in UTC; recurring weekly slots in local wall-clock (see below). Rendered in the device timezone.
+- Spark only — no billing card, no Cloud Functions.
+- Static web export — Firebase Hosting on Spark cannot run Next SSR.
+- No push — without a server there is no sender; phone alarms are the reliable path.
+- Firestore is the only source of truth; rules are the only access control because the client config is public.
 
 ## Architecture
 
 ```
-   Next.js static PWA ──┐                        ┌── Android (Kotlin + Compose)
-   (Firebase Hosting)   │                        │   (sideloaded debug APK)
-                        ├──▶ Firestore ◀─────────┤
-                        │    realtime + offline  │
-                        │    persistence         │
-                        └──▶ Firebase Auth       │
-                                                 └── AlarmManager (local exact alarms)
+   Next.js static PWA ──┐                          ┌── Android (Kotlin + Compose)
+   (Firebase Hosting)   │                          │   (sideloaded APK)
+                        ├──▶ Firestore ◀───────────┤
+                        │    realtime + offline    │
+                        │    persistence           │
+                        ▼                          ▼
+                   Firebase Auth            AlarmManager (exact, local)
+                                                   │
+                                            Garmin Personal API ──▶ ptSessions
 ```
 
-No Cloud Functions. No server-side rendering. No push messaging. Both clients talk to Firestore directly under per-user security rules.
+There is no server. Both clients read and write Firestore directly under per-user rules. The Android app is also the Garmin sync agent, because Garmin's API sends no CORS headers and a browser cannot call it.
 
-## Time model (the two-clock rule)
+## Quick start
 
-Two different kinds of time, stored differently on purpose:
+```powershell
+pnpm install            # also generates design tokens
+pnpm dev                # http://localhost:3000
+```
 
-- **Absolute moments** — task deadlines, alarm fire times, study session start/end. Stored as Firestore `Timestamp` (UTC epoch), rendered in local time.
-- **Recurring wall-clock** — weekly class slots. Stored as `dayOfWeek` (1 = Monday … 7 = Sunday), `startMinutes` / `endMinutes` (minutes from local midnight), and an IANA `timezone` on the user. A 09:00 Monday class stays 09:00 across DST changes and travel.
+You need a Firebase project and two local config files first — full steps in [`docs/setup.md`](docs/setup.md). The short version:
 
-Android converts slots to absolute instants locally when arming alarms; that conversion is the only place the two clocks meet.
+1. Create a Firebase project (Spark), enable **Google** and **Email/Password**, create **Firestore**, add a **Web app** and an **Android app** (`com.slot.app`) with your debug SHA-1.
+2. Copy `apps/web/.env.example` → `apps/web/.env.local` and fill in the web config.
+3. Copy `apps/android/local.properties.example` → `apps/android/local.properties`, set `sdk.dir` and the same Firebase values.
+4. `firebase login && firebase use --add`, then `firebase deploy --only firestore:rules,hosting`.
+
+## Garmin (automatic)
+
+Garmin's **Personal API** issues a key that is exchanged for a 24-hour token. The key never leaves the phone.
+
+1. Garmin Connect (web) → Settings → **Personal API** → create a key (30/90/180/365 days).
+2. In PaulPlan for Android: **Settings → Garmin** → paste the key → **Save & sync**.
+3. That's it. The phone syncs on app open (at most every 6h), every 12h in the background, and when you tap **Sync now via phone** on the web.
+
+No key? **Training → Import** still accepts a Garmin data-export `summarizedActivities.json`, or a Strava `activities.csv`.
+
+## Alarms
+
+- Created in Settings (web or phone) and stored in Firestore.
+- Android arms the next 21 days with `setAlarmClock`, including class reminders.
+- A direct-boot receiver re-arms from a device-protected snapshot after a reboot, even before first unlock.
+- Fires full-screen over the lock screen with a looping alarm tone and vibration; Done/Snooze writes `alarmState` so other devices know.
+- Android 14+ requires one-time **Full-screen alarms** and **Exact alarms** allowances — Settings → Delivery health shows their state.
 
 ## Data model
 
-All data lives under the signed-in user. Rules grant access only when `request.auth.uid == uid`.
+Everything lives under the signed-in user; rules only allow `request.auth.uid == uid`.
 
 ```
 users/{uid}/meta/profile          settings, timezone, schemaVersion
-users/{uid}/subjects/{id}         name, code, color, teacher, room, target hours
-users/{uid}/classes/{id}          timetable slots (dayOfWeek + minutes)
-users/{uid}/terms/{id}            optional: term start/end, week parity
-users/{uid}/tasks/{id}            dueAt (UTC), priority, status, sortKey
+users/{uid}/meta/garmin           sync status (never the API key)
+users/{uid}/subjects/{id}         name, code, colour, teacher, room, target hours
+users/{uid}/classes/{id}          timetable entries: class (subjectId) or event (title)
+users/{uid}/terms/{id}            optional term bounds and timezone
+users/{uid}/tasks/{id}            dueAt (UTC), priority, status, order
 users/{uid}/studySessions/{id}    startedAt, endedAt, durationMinutes, source
-users/{uid}/alarms/{id}           alarm definitions (recurrence, lead time, exact flag)
-users/{uid}/alarmState/{eventId}  sparse user actions: snoozed | dismissed
+users/{uid}/ptSessions/{id}       type, startedAt, durationMinutes, distanceKm, source
+users/{uid}/alarms/{id}           alarm definitions
+users/{uid}/alarmState/{eventId}  sparse snooze/dismiss actions
 ```
 
-Notes:
+Full field-level contract: [`docs/schema.md`](docs/schema.md). Two rules worth knowing:
 
-- Per-subject progress and weekly study hours are **derived** from tasks and sessions, never stored. Aggregates stored client-side go stale while offline.
-- `alarmState` documents are created only when a user acts on a fired alarm: `eventId = alarmId_fireAtEpochMin`. They are client-writable and cleaned up on launch after 30 days.
-- Kanban order uses a numeric `order` with midpoint inserts, so reordering never needs a transaction.
-- Conflict resolution is Firestore's native last-write-wins per field, with `updatedAt: serverTimestamp()` on every document for auditability. Multi-field edits are a single atomic `update()`. No read-before-write, so offline writes keep working.
-
-## Phase plan
-
-| # | Milestone | Done when |
-| --- | --- | --- |
-| 0 | Foundations | `pnpm dev` serves a themed placeholder; `assembleDebug` builds; a rule test proves cross-user reads are denied |
-| 1 | Web shell + auth | Google + email sign-in works in two browsers, session persists |
-| 2 | Timetable + subjects (web) | Edit in one window, other updates live; offline edit flushes on reconnect |
-| 3 | Tasks + kanban (web) | Offline create and reorder survive reconnect with no duplicates |
-| 4 | Study + progress + Pomodoro (web) | Timer survives reload; chart matches summed sessions exactly |
-| 5 | Web v1 complete + offline gate | Airplane-mode walkthrough of every screen; PWA installs; rules tests green |
-| 6 | Android: data + UI | Same account, identical live data, edits round-trip both ways |
-| 7 | Android: alarms | Fires with app killed, after reboot, in Doze, after timezone change; snooze/dismiss reaches web |
-| 8 | Polish + phase 2 extras | Widget, attendance, exam countdown, GPA, CSV export |
-
-Phase 5 is a hard gate: sync and offline semantics are cheap to prove on the web and expensive to debug across two platforms.
-
-Phases 0–7 are implemented in this repository. Phase 8 (widget, attendance, exam countdown, GPA, CSV export) is deliberately not started.
-
-Known v1 deviations from the original outline, all for static-export or scope reasons:
-
-- Subject detail is `/subjects/?id=…`, not `/subjects/[id]`, because a static export cannot pre-render unknown ids. Deep links still work.
-- The web kanban board is drag-and-drop; Android v1 uses a list with tap-to-cycle status and long-press to delete. Both write the same `status` and `order` fields.
-- Web reminders appear in an open tab only. Android alarms are the reliable path.
-- Android reads its Firebase config from `local.properties` via `BuildConfig` instead of `google-services.json`, so the repo builds without a generated credential file.
-
-## Repository layout
-
-```
-apps/web/            Next.js 14 (App Router, static export)
-apps/android/        Kotlin + Jetpack Compose, Gradle
-packages/design-tokens/   tokens.json -> CSS variables, Tailwind scale, Tokens.kt
-packages/shared/     zod schemas, enums, date helpers, Firestore types (Phase 1)
-packages/rules-tests/ Firestore rules tests against the emulator
-docs/schema.md       language-neutral data contract (mirrored by hand in Kotlin)
-docs/setup.md        Windows toolchain, Firebase console, first run
-firestore.rules      access control (tested)
-firebase.json        Hosting + emulator config
-```
-
-Tokens are generated, not hand-copied, so web and Android cannot drift. The data contract is a document plus zod schemas because Kotlin cannot share TypeScript; an emulator test catches contract drift.
-
-## Local prerequisites
-
-Node 20+ (LTS), pnpm 9, JDK 17, Android Studio with SDK 35 (min SDK 26), Firebase CLI, Git. Exact install commands are in [`docs/setup.md`](docs/setup.md).
-
-```powershell
-npm install -g pnpm@9 firebase-tools
-firebase login
-firebase use --add        # select the planner-9b0a2 Firebase project
-```
-
-Configuration lives in `apps/web/.env.local` (never committed):
-
-```
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
-```
-
-These values are public by design. Security rules are what protect the data.
+- **Two clocks.** Absolute moments are UTC timestamps; recurring weekly slots are wall-clock (`dayOfWeek` + minutes + IANA timezone) so a 09:00 class stays 09:00 across DST.
+- **No stored aggregates.** Progress and hours are derived from tasks and sessions, so offline edits can never leave a stale total.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm install` | Install deps; regenerates design tokens via `prepare` |
-| `pnpm dev` | Run the web app |
+| `pnpm install` | Install deps; regenerates tokens via `prepare` |
+| `pnpm dev` | Web app (uses `.next-dev`, separate from builds) |
 | `pnpm build` | Static export to `apps/web/out` |
 | `pnpm tokens` | Regenerate tokens for web + Android |
+| `pnpm test` | Web unit tests |
 | `pnpm test:rules` | Firestore rules tests in the emulator |
-| `pnpm verify` | Tokens + typecheck + lint + rules tests |
-| `cd apps/android && ./gradlew.bat assembleDebug` | Build the APK |
-| `adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk` | Sideload to a phone |
+| `pnpm verify` | tokens + tests + typecheck + lint + rules tests |
+| `cd apps/android && .\gradlew.bat assembleDebug` | Build the APK |
+| `adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk` | Sideload |
 
-Generated files (`tokens.generated.css`, `tokens.generated.ts`, `Tokens.kt`) are gitignored; `pnpm tokens` recreates them from `packages/design-tokens/tokens.json`.
+Generated token files (`tokens.generated.css`, `tokens.generated.ts`, `Tokens.kt`) are gitignored; `pnpm tokens` recreates them from `packages/design-tokens/tokens.json`.
 
-## Principles
+## Repository layout
 
-1. Boring, proven choices. No clever sync engines.
-2. One write path per collection. Optimistic UI comes free from the Firestore cache.
-3. Every screen has an empty state, a loading skeleton, an error toast, and optimistic mutations.
-4. Honest UI: web says "Reminders fire on your phone; web shows them when open." It does not pretend to be an alarm clock.
-5. Generous whitespace, one accent color, 150–200ms ease-out motion. No gradients, no emoji UI.
+```
+apps/web/                  Next.js 14, static export
+apps/android/              Kotlin + Compose, Gradle
+packages/design-tokens/    tokens.json -> CSS variables, Tailwind scale, Kotlin Tokens
+packages/rules-tests/      Firestore rules tests (emulator)
+docs/schema.md             data contract
+docs/setup.md              toolchain, Firebase, first run
+docs/fork.md               make it yours: rename, new Firebase project, deploy
+firestore.rules            access control (tested)
+firebase.json              Hosting + emulator config
+```
+
+## Make it yours
+
+Fork it, point it at your own Firebase project, and change the name. [`docs/fork.md`](docs/fork.md) lists every place that needs changing, including the parts that should *not* be renamed (Firestore collections, the Android package) and why.
+
+## Verification
+
+| Check | Result |
+| --- | --- |
+| Web unit tests (time, alarms, Strava CSV, Garmin JSON) | 18 passed |
+| Web typecheck + lint | clean |
+| Static export | 11 routes |
+| Firestore rules (emulator) | 23 passed |
+| Android build + lint | debug APK built; 0 lint errors |
+| Alarms on a Galaxy S23 | fired full-screen, snoozed, survived reboot without launching the app |
+| Garmin sync | 33 activities imported automatically |
+
+## Known limitations
+
+- **Firestore Spark quotas:** 50k reads / 20k writes / 20k deletes per day, 1 GiB. Requests fail until the daily reset if exceeded; no charges, no data loss.
+- **Garmin key expiry:** 30–365 days. Sync stops (nothing else does) until you paste a new key.
+- **Web reminders need an open tab.** There is no push on Spark.
+- **Single-user by design.** Rules are owner-only; there is no sharing.
+- **Sideloaded Android app.** No Play Store, so updates are manual APKs.
+- **The Garmin key lives on the phone.** A reinstall keeps it; a factory reset means pasting it again.
+
+## License
+
+MIT — see [LICENSE](LICENSE). The name "PaulPlan" and the P mark are personal to the original author; forks should pick their own name.

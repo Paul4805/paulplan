@@ -1,0 +1,14 @@
+## Copy to apps/android/local.properties (gitignored) and fill in.
+## sdk.dir is the Android SDK location.
+sdk.dir=C:/Users/you/AppData/Local/Android/Sdk
+
+## Same values as apps/web/.env.local (Firebase console > Project settings > Your apps).
+firebase.apiKey=
+firebase.applicationId=
+firebase.projectId=
+firebase.storageBucket=
+firebase.senderId=
+
+## OAuth *Web* client ID (Authentication > Google > Web SDK configuration),
+## used by Credential Manager for Google sign-in on Android.
+google.webClientId=
