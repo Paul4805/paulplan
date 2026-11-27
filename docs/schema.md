@@ -137,7 +137,7 @@ One collection for both classes and free-standing events, because both are weekl
 | `endMinutes` | int > `startMinutes`, ≤ 1440 | yes |
 | `room` | string | no |
 | `teacher` | string | no |
-| `colorOverride` | enum | no; events use it, classes inherit the subject colour |
+| `colorOverride` | enum | no; optional for classes and events; falls back to the subject colour |
 | `notes` | string | no |
 | `termId` | string | no |
 

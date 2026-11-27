@@ -224,7 +224,7 @@ fun AddEntryDialog(
     var kind by remember { mutableStateOf(defaultKind) }
     var subjectId by remember { mutableStateOf(subjects.firstOrNull()?.id ?: "") }
     var title by remember { mutableStateOf("") }
-    var color by remember { mutableStateOf("indigo") }
+    var color by remember { mutableStateOf(subjects.firstOrNull()?.color ?: "indigo") }
     var day by remember { mutableStateOf(LocalDate.now().dayOfWeek.value) }
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var startHour by remember { mutableStateOf("09") }
@@ -256,7 +256,12 @@ fun AddEntryDialog(
                     ChipRow(
                         values = subjects.map { it.id to it.name },
                         selected = subjectId,
-                        onSelect = { subjectId = it },
+                        onSelect = {
+                            subjectId = it
+                            subjects.firstOrNull { subject -> subject.id == it }?.color?.let { picked ->
+                                color = picked
+                            }
+                        },
                     )
                 } else {
                     OutlinedTextField(
@@ -267,14 +272,15 @@ fun AddEntryDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    FieldLabel("Colour")
-                    ChipRow(
-                        values = listOf("indigo", "sky", "violet", "amber", "rose", "emerald")
-                            .map { it to it.replaceFirstChar { c -> c.uppercase() } },
-                        selected = color,
-                        onSelect = { color = it },
-                    )
                 }
+
+                FieldLabel("Colour")
+                ChipRow(
+                    values = listOf("indigo", "sky", "violet", "amber", "rose", "emerald")
+                        .map { it to it.replaceFirstChar { c -> c.uppercase() } },
+                    selected = color,
+                    onSelect = { color = it },
+                )
 
                 FieldLabel(if (isClass) "Day" else "Date")
                 if (isClass) {
@@ -338,7 +344,7 @@ fun AddEntryDialog(
                                 kind,
                                 if (isClass) subjectId else null,
                                 if (isClass) null else title.trim(),
-                                if (isClass) null else color,
+                                color,
                                 eventDate?.dayOfWeek?.value ?: day,
                                 start,
                                 end,

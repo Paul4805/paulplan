@@ -41,7 +41,7 @@ function emptyForm(subjects: Subject[], kind: Kind, day: number): FormState {
     kind,
     subjectId: subjects[0]?.id ?? '',
     title: '',
-    color: 'indigo',
+    color: subjects[0]?.color ?? 'indigo',
     dayOfWeek: String(day),
     date: kind === 'event' ? todayInput() : '',
     start: '09:00',
@@ -141,7 +141,7 @@ export function ClassDialog({
       }
 
       // Only events carry their own colour; classes inherit the subject's.
-      if (!isClass) payload.colorOverride = form.color
+      payload.colorOverride = form.color
 
       if (initial) await patchDoc(path, initial.id, payload)
       else await createDoc(path, payload)
@@ -211,9 +211,9 @@ export function ClassDialog({
           ]}
         />
 
-        {isClass ? (
-          <>
-            {subjects.length === 0 ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+          {isClass ? (
+            subjects.length === 0 ? (
               <p className="rounded-chip border border-border bg-canvas p-3 text-sm text-ink-muted">
                 Create a subject first, or switch this entry to Event.
               </p>
@@ -222,7 +222,14 @@ export function ClassDialog({
                 <Select
                   id="class-subject"
                   value={form.subjectId}
-                  onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
+                  onChange={(event) => {
+                    const subject = subjects.find((item) => item.id === event.target.value)
+                    setForm({
+                      ...form,
+                      subjectId: event.target.value,
+                      color: subject?.color ?? form.color,
+                    })
+                  }}
                 >
                   {subjects.map((subject) => (
                     <option key={subject.id} value={subject.id}>
@@ -231,10 +238,8 @@ export function ClassDialog({
                   ))}
                 </Select>
               </Field>
-            )}
-          </>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+            )
+          ) : (
             <Field label="Title" htmlFor="event-title">
               <Input
                 id="event-title"
@@ -244,22 +249,23 @@ export function ClassDialog({
                 maxLength={80}
               />
             </Field>
-            <Field label="Colour" htmlFor="event-color">
-              <Select
-                id="event-color"
-                value={form.color}
-                onChange={(event) => setForm({ ...form, color: event.target.value as TagColor })}
-              >
-                {TAG_COLORS.map((color) => (
-                  <option key={color} value={color}>
-                    {color[0]?.toUpperCase()}
-                    {color.slice(1)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-        )}
+          )}
+
+          <Field label="Colour" htmlFor="entry-color">
+            <Select
+              id="entry-color"
+              value={form.color}
+              onChange={(event) => setForm({ ...form, color: event.target.value as TagColor })}
+            >
+              {TAG_COLORS.map((color) => (
+                <option key={color} value={color}>
+                  {color[0]?.toUpperCase()}
+                  {color.slice(1)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           {isClass ? (
