@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,11 +37,11 @@ import com.slot.app.data.ClassSlot
 import com.slot.app.data.SlotViewModel
 import com.slot.app.data.StudySession
 import com.slot.app.data.TaskItem
+import com.slot.app.focus.FocusTimer
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.Calendar
 import java.util.Date
-import kotlinx.coroutines.delay
 
 private fun isToday(date: Date?): Boolean {
     if (date == null) return false
@@ -65,6 +66,7 @@ fun TodayScreen(
     val classes by vm.classes.collectAsStateWithLifecycle()
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val sessions by vm.sessions.collectAsStateWithLifecycle()
+    val profile by vm.profile.collectAsStateWithLifecycle()
 
     val subjectById = subjects.associateBy { it.id }
 
@@ -75,7 +77,12 @@ fun TodayScreen(
     val nowMinutes = now.hour * 60 + now.minute
     val today = LocalDate.now().dayOfWeek.value
 
-    val todays = classes.filter { it.dayOfWeek == today }.sortedBy { it.startMinutes }
+    val todays = if (termActive(profile)) {
+        classes.filter { it.dayOfWeek == today }.sortedBy { it.startMinutes }
+    } else {
+        emptyList()
+    }
+    val termNotice = termMessage(profile)
     val current = todays.firstOrNull { nowMinutes in it.startMinutes until it.endMinutes }
     val next = todays.firstOrNull { it.startMinutes > nowMinutes }
     val open = tasks.filter { it.status != "done" }
@@ -160,7 +167,9 @@ fun TodayScreen(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         SectionTitle("Today's schedule")
-        if (todays.isEmpty()) {
+        if (termNotice != null) {
+            EmptyHint("Out of term", "$termNotice Adjust the dates on the web dashboard in Settings.")
+        } else if (todays.isEmpty()) {
             EmptyHint("Nothing scheduled", "Add weekly classes, or drop in a one-off event.")
         } else {
             todays.forEach { slot ->
@@ -183,9 +192,9 @@ fun TodayScreen(
                         )
                         Text(
                             text = listOfNotNull(
-                                "${minutesLabel(slot.startMinutes)}–${minutesLabel(slot.endMinutes)}",
+                                "${minutesLabel(slot.startMinutes)} - ${minutesLabel(slot.endMinutes)}",
                                 slot.room?.takeIf { it.isNotBlank() },
-                            ).joinToString(" · "),
+                            ).joinToString(" - "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -239,8 +248,8 @@ fun TodayScreen(
         AddTaskDialog(
             subjects = subjects,
             onDismiss = { taskOpen = false },
-            onSave = { title, subjectId, dueAt, priority ->
-                vm.addTask(title, "", subjectId, dueAt, priority, "todo")
+            onSave = { title, subjectId, dueAt, priority, remind ->
+                vm.addTask(title, "", subjectId, dueAt, priority, "todo", remind)
             },
         )
     }
@@ -260,6 +269,7 @@ fun TodayScreen(
 fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val subjects by vm.subjects.collectAsStateWithLifecycle()
     val classes by vm.classes.collectAsStateWithLifecycle()
+    val profile by vm.profile.collectAsStateWithLifecycle()
     val subjectById = subjects.associateBy { it.id }
 
     var selectedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
@@ -270,7 +280,12 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     fun entryLabel(slot: ClassSlot): String =
         slot.subjectId?.let { subjectById[it]?.name } ?: slot.title ?: "Entry"
 
-    val slots = classes.filter { it.dayOfWeek == selectedDay }.sortedBy { it.startMinutes }
+    val termNotice = termMessage(profile)
+    val slots = if (termActive(profile)) {
+        classes.filter { it.dayOfWeek == selectedDay }.sortedBy { it.startMinutes }
+    } else {
+        emptyList()
+    }
 
     Column(
         modifier = modifier
@@ -304,7 +319,9 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        if (slots.isEmpty()) {
+        if (termNotice != null) {
+            EmptyHint("Out of term", "$termNotice Adjust the dates on the web dashboard in Settings.")
+        } else if (slots.isEmpty()) {
             EmptyHint("Nothing on ${dayLabel(selectedDay)}", "Add a class, or pick another day.")
         } else {
             slots.forEach { slot ->
@@ -319,7 +336,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
                             if (dotColor != null) {
                                 Text(
-                                    "●",
+                                    "\u25CF",
                                     color = dotColor,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -332,9 +349,9 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                         Text(
                             text = buildString {
                                 append(minutesLabel(slot.startMinutes))
-                                append("–")
+                                append(" - ")
                                 append(minutesLabel(slot.endMinutes))
-                                slot.room?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                                slot.room?.takeIf { it.isNotBlank() }?.let { append(" - ").append(it) }
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -464,8 +481,8 @@ fun TasksScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         AddTaskDialog(
             subjects = subjects,
             onDismiss = { taskOpen = false },
-            onSave = { title, subjectId, dueAt, priority ->
-                vm.addTask(title, "", subjectId, dueAt, priority, "todo")
+            onSave = { title, subjectId, dueAt, priority, remind ->
+                vm.addTask(title, "", subjectId, dueAt, priority, "todo", remind)
             },
         )
     }
@@ -482,45 +499,24 @@ fun TasksScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
 
 @Composable
 fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    FocusTimer.load(context)
+    val timer by FocusTimer.state.collectAsStateWithLifecycle()
+
     val subjects by vm.subjects.collectAsStateWithLifecycle()
     val sessions by vm.sessions.collectAsStateWithLifecycle()
     val profile by vm.profile.collectAsStateWithLifecycle()
     val subjectById = subjects.associateBy { it.id }
 
+    LaunchedEffect(Unit) {
+        FocusTimer.ensureService(context)
+    }
+
     val focusMinutes = profile.focusMinutes
     val shortMinutes = profile.shortMinutes
-
-    var phase by rememberSaveable { mutableStateOf("focus") }
-    var running by rememberSaveable { mutableStateOf(false) }
-    var secondsLeft by rememberSaveable { mutableIntStateOf(focusMinutes * 60) }
-    var subjectId by rememberSaveable { mutableStateOf("") }
-    var initialized by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(focusMinutes, initialized) {
-        if (!initialized) {
-            secondsLeft = focusMinutes * 60
-            initialized = true
-        }
-    }
-
-    LaunchedEffect(running, phase) {
-        if (!running) return@LaunchedEffect
-        while (secondsLeft > 0) {
-            delay(1_000L)
-            secondsLeft -= 1
-        }
-        running = false
-        if (phase == "focus") {
-            vm.logSession(subjectId.ifBlank { null }, focusMinutes, "pomodoro")
-        }
-        phase = if (phase == "focus") "short" else "focus"
-        secondsLeft = (if (phase == "focus") focusMinutes else shortMinutes) * 60
-    }
-
-    val duration = if (phase == "focus") focusMinutes else shortMinutes
-    val total = (duration * 60).coerceAtLeast(1)
-    val progress = 1f - secondsLeft.toFloat() / total.toFloat()
     val todaySessions = sessions.filter { isToday(it.startedAt) }
+    val total = (timer.minutes * 60).coerceAtLeast(1)
+    val progress = 1f - timer.remainingSec.toFloat() / total.toFloat()
 
     Column(
         modifier = modifier
@@ -530,15 +526,18 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(Tokens.Space.s4),
     ) {
         Text("Focus", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Runs in a foreground service, so it keeps counting when you leave the app.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
             listOf("focus" to "Focus", "short" to "Break").forEach { (value, label) ->
                 FilterChip(
-                    selected = phase == value,
+                    selected = timer.phase == value,
                     onClick = {
-                        phase = value
-                        running = false
-                        secondsLeft = (if (value == "focus") focusMinutes else shortMinutes) * 60
+                        FocusTimer.setPhase(context, value, focusMinutes, shortMinutes)
                     },
                     label = { Text(label) },
                 )
@@ -551,18 +550,35 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(Tokens.Space.s3),
         ) {
             Text(
-                text = "%02d:%02d".format(secondsLeft / 60, secondsLeft % 60),
+                text = "%02d:%02d".format(timer.remainingSec / 60, timer.remainingSec % 60),
                 style = MaterialTheme.typography.headlineLarge,
             )
             ProgressBar(progress, modifier = Modifier.padding(horizontal = Tokens.Space.s6))
+            Text(
+                if (timer.running) "Counting down" else "Paused",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
-                Button(onClick = { running = !running }) {
-                    Text(if (running) "Pause" else "Start")
+                Button(
+                    onClick = {
+                        if (timer.running) {
+                            FocusTimer.pause(context)
+                        } else {
+                            FocusTimer.start(
+                                context = context,
+                                phase = timer.phase,
+                                subjectId = timer.subjectId,
+                                focusMinutes = focusMinutes,
+                                shortMinutes = shortMinutes,
+                            )
+                        }
+                    },
+                ) {
+                    Text(if (timer.running) "Pause" else "Start")
                 }
-                OutlinedButton(onClick = {
-                    running = false
-                    secondsLeft = duration * 60
-                }) { Text("Reset") }
+                OutlinedButton(onClick = { FocusTimer.reset(context) }) { Text("Reset") }
+                OutlinedButton(onClick = { FocusTimer.skip(context) }) { Text("Skip") }
             }
         }
 
@@ -572,14 +588,14 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
         ) {
             FilterChip(
-                selected = subjectId.isBlank(),
-                onClick = { subjectId = "" },
+                selected = timer.subjectId == null,
+                onClick = { FocusTimer.setSubject(context, null) },
                 label = { Text("None") },
             )
             subjects.forEach { subject ->
                 FilterChip(
-                    selected = subjectId == subject.id,
-                    onClick = { subjectId = subject.id },
+                    selected = timer.subjectId == subject.id,
+                    onClick = { FocusTimer.setSubject(context, subject.id) },
                     label = { Text(subject.name) },
                 )
             }
@@ -587,7 +603,7 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        SectionTitle("Today · ${todaySessions.sumOf { it.durationMinutes }} min")
+        SectionTitle("Today - ${todaySessions.sumOf { it.durationMinutes }} min")
         if (todaySessions.isEmpty()) {
             EmptyHint("No sessions yet", "Start the timer, or log one from a subject.")
         } else {
@@ -612,7 +628,7 @@ fun FocusScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         }
 
         Text(
-            "Sessions are written to Firestore when the timer ends, so they appear on the web too.",
+            "Focus sessions are written to Firestore when the timer ends, so they appear on the web too.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

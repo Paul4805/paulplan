@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -42,6 +43,7 @@ class SlotRepository(
     fun sessions(): Flow<List<StudySession>> = collectionFlow("studySessions") { it.toSession() }
     fun ptSessions(): Flow<List<PtSession>> = collectionFlow("ptSessions") { it.toPtSession() }
     fun alarms(): Flow<List<AlarmItem>> = collectionFlow("alarms") { it.toAlarm() }
+    fun dailyHealth(): Flow<List<DailyHealth>> = collectionFlow("dailyHealth") { it.toDailyHealth() }
 
     fun profile(): Flow<Profile> = callbackFlow {
         val registration = col("meta").document("profile")
@@ -117,6 +119,59 @@ class SlotRepository(
         col("subjects").document(id).delete().await()
     }
 
+    suspend fun archiveTerm() {
+        for (document in col("subjects").get().await().documents) {
+            runCatching {
+                document.reference.update(
+                    mapOf(
+                        "archived" to true,
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                ).await()
+            }
+        }
+        for (document in col("tasks").get().await().documents) {
+            runCatching {
+                document.reference.update(
+                    mapOf(
+                        "archived" to true,
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                ).await()
+            }
+        }
+        for (document in col("classes").get().await().documents) {
+            runCatching { document.reference.delete().await() }
+        }
+    }
+
+    suspend fun restoreArchived() {
+        for (document in col("subjects").get().await().documents) {
+            if (document.getBoolean("archived") == true) {
+                runCatching {
+                    document.reference.update(
+                        mapOf(
+                            "archived" to false,
+                            "updatedAt" to FieldValue.serverTimestamp(),
+                        ),
+                    ).await()
+                }
+            }
+        }
+        for (document in col("tasks").get().await().documents) {
+            if (document.getBoolean("archived") == true) {
+                runCatching {
+                    document.reference.update(
+                        mapOf(
+                            "archived" to false,
+                            "updatedAt" to FieldValue.serverTimestamp(),
+                        ),
+                    ).await()
+                }
+            }
+        }
+    }
+
     suspend fun addEntry(
         kind: String,
         subjectId: String?,
@@ -147,8 +202,18 @@ class SlotRepository(
         col("classes").document(id).delete().await()
     }
 
-    suspend fun addTask(title: String, notes: String, subjectId: String?, dueAt: Date?, priority: String, status: String) {
-        col("tasks").add(
+    suspend fun addTask(
+        title: String,
+        notes: String,
+        subjectId: String?,
+        dueAt: Date?,
+        priority: String,
+        status: String,
+        remind: Boolean = false,
+        timezone: String = java.time.ZoneId.systemDefault().id,
+        leadMinutes: Int = 10,
+    ) {
+        val taskRef = col("tasks").add(
             mapOf(
                 "title" to title,
                 "notes" to notes,
@@ -158,24 +223,71 @@ class SlotRepository(
                 "status" to status,
                 "completedAt" to if (status == "done") FieldValue.serverTimestamp() else null,
                 "order" to System.currentTimeMillis().toDouble(),
+                "remind" to (remind && dueAt != null),
+                "archived" to false,
                 "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ),
+        ).await()
+
+        if (!remind || dueAt == null) return
+
+        val alarmRef = col("alarms").add(
+            mapOf(
+                "title" to title,
+                "kind" to "task",
+                "recurrence" to "once",
+                "onceAt" to Timestamp(dueAt),
+                "leadMinutes" to leadMinutes.toLong(),
+                "exact" to true,
+                "enabled" to true,
+                "timezone" to timezone,
+                "targetId" to taskRef.id,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ),
+        ).await()
+
+        taskRef.update(
+            mapOf(
+                "alarmId" to alarmRef.id,
                 "updatedAt" to FieldValue.serverTimestamp(),
             ),
         ).await()
     }
 
     suspend fun setTaskStatus(id: String, status: String) {
-        col("tasks").document(id).update(
+        val reference = col("tasks").document(id)
+        val alarmId = runCatching { reference.get().await().getString("alarmId") }.getOrNull()
+        reference.update(
             mapOf(
                 "status" to status,
                 "completedAt" to if (status == "done") FieldValue.serverTimestamp() else null,
                 "updatedAt" to FieldValue.serverTimestamp(),
             ),
         ).await()
+
+        if (!alarmId.isNullOrBlank()) {
+            runCatching {
+                col("alarms").document(alarmId)
+                    .update(
+                        mapOf(
+                            "enabled" to (status != "done"),
+                            "updatedAt" to FieldValue.serverTimestamp(),
+                        ),
+                    )
+                    .await()
+            }
+        }
     }
 
     suspend fun deleteTask(id: String) {
-        col("tasks").document(id).delete().await()
+        val reference = col("tasks").document(id)
+        val alarmId = runCatching { reference.get().await().getString("alarmId") }.getOrNull()
+        if (!alarmId.isNullOrBlank()) {
+            runCatching { col("alarms").document(alarmId).delete().await() }
+        }
+        reference.delete().await()
     }
 
     suspend fun addAlarm(
@@ -350,6 +462,37 @@ object AuthRepository {
 
     fun signOut() {
         authOrNull()?.signOut()
+    }
+
+    suspend fun deleteAccount(password: String, db: FirebaseFirestore) {
+        val auth = authOrNull() ?: error("Firebase is not configured.")
+        val user = auth.currentUser ?: error("You are not signed in.")
+        val email = user.email ?: error("This account has no email address.")
+        val hasPassword = user.providerData.any { it.providerId == "password" }
+        if (!hasPassword) error("Sign in with email and password to delete the account in-app.")
+
+        user.reauthenticate(EmailAuthProvider.getCredential(email, password)).await()
+
+        val base = db.collection("users").document(user.uid)
+        for (name in listOf(
+            "subjects",
+            "classes",
+            "tasks",
+            "studySessions",
+            "ptSessions",
+            "alarms",
+            "alarmState",
+            "dailyHealth",
+        )) {
+            for (document in base.collection(name).get().await().documents) {
+                runCatching { document.reference.delete().await() }
+            }
+        }
+        for (document in base.collection("meta").get().await().documents) {
+            runCatching { document.reference.delete().await() }
+        }
+        runCatching { base.delete().await() }
+        user.delete().await()
     }
 
     fun updateDisplayName(name: String): Boolean {

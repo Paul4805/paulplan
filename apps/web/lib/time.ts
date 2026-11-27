@@ -131,6 +131,27 @@ export function daysUntil(value: Timestamp | null | undefined): number | null {
   return Math.round((startOfDay(date).getTime() - today.getTime()) / 86_400_000)
 }
 
+export type TermState = 'active' | 'before' | 'after' | 'unset'
+
+/** Local calendar dates from `YYYY-MM-DD`, inclusive. */
+export function termState(
+  term: { termStart?: string; termEnd?: string } | null | undefined,
+  date = new Date(),
+): TermState {
+  if (!term?.termStart && !term?.termEnd) return 'unset'
+  const today = startOfDay(date)
+
+  if (term.termStart) {
+    const start = new Date(`${term.termStart}T00:00:00`)
+    if (!Number.isNaN(start.getTime()) && today < startOfDay(start)) return 'before'
+  }
+  if (term.termEnd) {
+    const end = new Date(`${term.termEnd}T00:00:00`)
+    if (!Number.isNaN(end.getTime()) && today > startOfDay(end)) return 'after'
+  }
+  return 'active'
+}
+
 /** Wall-clock minutes at which an alarm fires on a given date, if it does. */
 export function alarmMinutesForDate(alarm: Alarm, date: Date): number[] {
   if (!alarm.enabled) return []

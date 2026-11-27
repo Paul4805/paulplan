@@ -23,6 +23,7 @@ import {
   formatDue,
   minutesNow,
   minutesToLabel,
+  termState,
   toDate,
 } from '@/lib/time'
 import type {
@@ -60,6 +61,8 @@ export default function TodayPage() {
   const today = now
   const todayMinutes = minutesNow(now)
   const weekday = dayOfWeek(today)
+  const term = termState(profile.item, today)
+  const termPaused = term === 'before' || term === 'after'
 
   const subjectById = useMemo(
     () => new Map(subjects.items.map((subject) => [subject.id, subject])),
@@ -78,10 +81,12 @@ export default function TodayPage() {
 
   const todaysClasses = useMemo(
     () =>
-      classes.items
-        .filter((slot) => slot.dayOfWeek === weekday)
-        .sort((a, b) => a.startMinutes - b.startMinutes),
-    [classes.items, weekday],
+      termPaused
+        ? []
+        : classes.items
+            .filter((slot) => slot.dayOfWeek === weekday)
+            .sort((a, b) => a.startMinutes - b.startMinutes),
+    [classes.items, weekday, termPaused],
   )
 
   const currentClass = todaysClasses.find(
@@ -90,7 +95,7 @@ export default function TodayPage() {
   const nextClass = todaysClasses.find((slot) => slot.startMinutes > todayMinutes)
 
   const openTasks = useMemo(
-    () => tasks.items.filter((task) => task.status !== 'done'),
+    () => tasks.items.filter((task) => task.status !== 'done' && !task.archived),
     [tasks.items],
   )
 
@@ -272,6 +277,15 @@ export default function TodayPage() {
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />
             </div>
+          ) : termPaused ? (
+            <div className="rounded-card border border-warning bg-surface px-4 py-6 text-center">
+              <p className="text-sm font-medium text-ink">
+                {term === 'before' ? 'The term has not started' : 'The term has ended'}
+              </p>
+              <p className="mt-1 text-sm text-ink-muted">
+                Weekly classes are hidden. Adjust the dates in Settings.
+              </p>
+            </div>
           ) : todaysClasses.length === 0 ? (
             <EmptyState
               title="Nothing scheduled today"
@@ -433,7 +447,7 @@ export default function TodayPage() {
           />
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {subjects.items.slice(0, 4).map((subject) => {
+            {subjects.items.filter((subject) => !subject.archived).slice(0, 4).map((subject) => {
               const logged = sessions.items
                 .filter((session) => {
                   if (session.subjectId !== subject.id) return false

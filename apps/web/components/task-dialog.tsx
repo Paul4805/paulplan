@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react'
 
 import { Button, Dialog, Field, Input, Select, Textarea } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
-import { createDoc, patchDoc, removeDoc, userPath } from '@/lib/db'
+import { createDoc, patchDoc, removeDoc, useDoc, userPath } from '@/lib/db'
 import { pad2 } from '@/lib/time'
 import { useToast } from '@/lib/toast'
-import type { Priority, Subject, Task, TaskStatus } from '@/lib/types'
+import type { Priority, Profile, Subject, Task, TaskStatus } from '@/lib/types'
 
 interface FormState {
   title: string
@@ -18,6 +18,7 @@ interface FormState {
   time: string
   priority: Priority
   status: TaskStatus
+  remind: boolean
 }
 
 function toDateInput(date: Date): string {
@@ -43,6 +44,7 @@ function emptyForm(status: TaskStatus, subjectId = ''): FormState {
     time: '17:00',
     priority: 'medium',
     status,
+    remind: false,
   }
 }
 
@@ -63,6 +65,9 @@ export function TaskDialog({
 }) {
   const { user } = useAuth()
   const toast = useToast()
+  const profile = useDoc<Profile & { id: string }>(
+    user ? userPath(user.uid, 'meta/profile') : null,
+  )
   const [form, setForm] = useState<FormState>(() => emptyForm(defaultStatus, defaultSubjectId))
   const [busy, setBusy] = useState(false)
 
@@ -82,12 +87,14 @@ export function TaskDialog({
       time: due ? toTimeInput(due) : '17:00',
       priority: initial.priority,
       status: initial.status,
+      remind: Boolean(initial.remind || initial.alarmId),
     })
   }, [open, initial, defaultStatus, defaultSubjectId])
 
   if (!user) return null
 
-  const path = userPath(user.uid, 'tasks')
+  const uid = user.uid
+  const path = userPath(uid, 'tasks')
 
   async function save() {
     if (!form.title.trim()) {
@@ -105,7 +112,7 @@ export function TaskDialog({
             : Timestamp.now()
           : null
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         title: form.title.trim(),
         notes: form.notes.trim(),
         subjectId: form.subjectId || null,
@@ -113,12 +120,47 @@ export function TaskDialog({
         priority: form.priority,
         status: form.status,
         completedAt,
+        remind: form.remind && due !== null,
       }
+
+      let alarmId = initial?.alarmId ?? null
+
+      if (form.remind && due) {
+        const meta = { ...profile.item }
+        const alarmPayload = {
+          title: form.title.trim(),
+          kind: 'task' as const,
+          recurrence: 'once' as const,
+          onceAt: Timestamp.fromDate(due),
+          leadMinutes: meta.notifications?.leadMinutes ?? 10,
+          exact: true,
+          enabled: true,
+          timezone: meta.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+          targetId: initial?.id ?? null,
+        }
+
+        if (alarmId) {
+          await patchDoc(userPath(uid, 'alarms'), alarmId, alarmPayload)
+        } else {
+          const created = await createDoc(userPath(uid, 'alarms'), alarmPayload)
+          alarmId = created.id
+        }
+      } else if (alarmId) {
+        await removeDoc(userPath(uid, 'alarms'), alarmId).catch(() => undefined)
+        alarmId = null
+      }
+
+      payload.alarmId = alarmId
 
       if (initial) {
         await patchDoc(path, initial.id, payload)
       } else {
-        await createDoc(path, { ...payload, order: Date.now() })
+        const created = await createDoc(path, { ...payload, order: Date.now() })
+        if (alarmId) {
+          await patchDoc(userPath(uid, 'alarms'), alarmId, { targetId: created.id }).catch(
+            () => undefined,
+          )
+        }
       }
 
       toast({ title: initial ? 'Task updated' : 'Task added', tone: 'success' })
@@ -136,6 +178,9 @@ export function TaskDialog({
     if (!window.confirm('Delete this task?')) return
     setBusy(true)
     try {
+      if (initial.alarmId) {
+        await removeDoc(userPath(uid, 'alarms'), initial.alarmId).catch(() => undefined)
+      }
       await removeDoc(path, initial.id)
       toast({ title: 'Task deleted', tone: 'success' })
       onClose()
@@ -225,7 +270,13 @@ export function TaskDialog({
               id="task-date"
               type="date"
               value={form.date}
-              onChange={(event) => setForm({ ...form, date: event.target.value })}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  date: event.target.value,
+                  remind: event.target.value ? form.remind : false,
+                })
+              }
             />
           </Field>
           <Field label="Due time" htmlFor="task-time">
@@ -238,6 +289,30 @@ export function TaskDialog({
             />
           </Field>
         </div>
+
+        <label
+          className={
+            form.date
+              ? 'flex cursor-pointer items-start gap-3 rounded-chip border border-border bg-canvas p-3'
+              : 'flex items-start gap-3 rounded-chip border border-border bg-canvas p-3 opacity-60'
+          }
+        >
+          <input
+            type="checkbox"
+            checked={form.remind}
+            disabled={!form.date}
+            onChange={(event) => setForm({ ...form, remind: event.target.checked })}
+            className="mt-0.5 size-4 accent-[var(--color-accent)]"
+          />
+          <span>
+            <span className="block text-sm font-medium text-ink">Remind me</span>
+            <span className="block text-xs leading-relaxed text-ink-muted">
+              {form.date
+                ? 'Fires on your Android phone, even offline. The web shows a banner while open.'
+                : 'Set a due date first.'}
+            </span>
+          </span>
+        </label>
 
         <Field label="Status" htmlFor="task-status">
           <Select

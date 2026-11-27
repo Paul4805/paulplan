@@ -57,6 +57,7 @@ export function InPageReminders() {
   const [due, setDue] = useState<Due | null>(null)
 
   const leadMinutes = profile.item?.notifications?.leadMinutes ?? DEFAULT_LEAD_MINUTES
+  const browserEnabled = profile.item?.notifications?.browser === true
 
   useEffect(() => {
     if (!user) return
@@ -104,8 +105,37 @@ export function InPageReminders() {
     if (fresh) {
       markShown(fresh.key)
       setDue(fresh)
+
+      if (
+        browserEnabled &&
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted'
+      ) {
+        try {
+          const notification = new Notification(fresh.title, {
+            body: fresh.detail,
+            tag: fresh.key,
+          })
+          notification.onclick = () => {
+            window.focus()
+            notification.close()
+          }
+        } catch {
+          // Mobile browsers forbid the constructor; use the service worker.
+          if ('serviceWorker' in navigator) {
+            void navigator.serviceWorker.ready
+              .then((registration) =>
+                registration.showNotification(fresh.title, {
+                  body: fresh.detail,
+                  tag: fresh.key,
+                }),
+              )
+              .catch(() => undefined)
+          }
+        }
+      }
     }
-  }, [now, alarms.items, classes.items, subjects.items, user, leadMinutes])
+  }, [now, alarms.items, classes.items, subjects.items, user, leadMinutes, browserEnabled])
 
   if (!due) return null
 

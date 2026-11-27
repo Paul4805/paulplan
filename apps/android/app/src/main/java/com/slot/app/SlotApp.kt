@@ -8,12 +8,15 @@ import com.slot.app.alarm.AlarmRefreshWorker
 import com.slot.app.alarm.NotificationChannels
 import com.slot.app.data.GarminSyncWatcher
 import com.slot.app.data.GarminSyncWorker
+import com.slot.app.focus.FocusTimer
 
 class SlotApp : Application() {
     override fun onCreate() {
         super.onCreate()
         initializeFirebase()
         NotificationChannels.create(this)
+        FocusTimer.load(this)
+        runCatching { FocusTimer.ensureService(this) }
         AlarmSync.start(this)
         AlarmRefreshWorker.enqueue(this)
         GarminSyncWatcher.start(this)

@@ -82,6 +82,13 @@ object GarminStore {
     fun markHandled(context: Context, value: Long) {
         prefs(context).edit().putLong("handled", value).apply()
     }
+
+    fun displayName(context: Context): String? =
+        prefs(context).getString("display_name", null)?.takeIf { it.isNotBlank() }
+
+    fun saveDisplayName(context: Context, name: String) {
+        prefs(context).edit().putString("display_name", name).apply()
+    }
 }
 
 private data class GarminActivity(
@@ -91,6 +98,10 @@ private data class GarminActivity(
     val startedAt: Date,
     val minutes: Int,
     val km: Double?,
+    val avgHr: Double?,
+    val maxHr: Double?,
+    val elevationGain: Double?,
+    val calories: Double?,
 )
 
 object GarminSync {
@@ -135,6 +146,10 @@ object GarminSync {
                         "source" to "garmin-api",
                         "externalId" to activity.id,
                         "notes" to "",
+                        "avgHr" to activity.avgHr,
+                        "maxHr" to activity.maxHr,
+                        "elevationGain" to activity.elevationGain,
+                        "calories" to activity.calories,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp(),
                     ),
@@ -145,6 +160,11 @@ object GarminSync {
             if (page.length() < pageSize) break
             start += pageSize
         }
+
+        // Health summaries are best-effort: a changed Garmin endpoint must never
+        // stop activity import.
+        runCatching { syncHealth(context, token, uid, db) }
+            .onFailure { android.util.Log.w("Slot", "Garmin health sync failed", it) }
 
         // `requestedAt` is intentionally not written here: it is the web's
         // request marker, and rewriting it would retrigger the listener.
@@ -203,6 +223,85 @@ object GarminSync {
         return JSONArray(body)
     }
 
+    /** Returns null instead of throwing so one unavailable metric cannot stop the rest. */
+    private fun getJson(token: String, path: String): JSONObject? = runCatching {
+        val connection = (URL("$HOST$path").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept", "application/json")
+            connectTimeout = 12_000
+            readTimeout = 20_000
+        }
+
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            connection.disconnect()
+            return@runCatching null
+        }
+
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        connection.disconnect()
+        if (body.isBlank()) null else JSONObject(body)
+    }.getOrNull()
+
+    private suspend fun syncHealth(
+        context: Context,
+        token: String,
+        uid: String,
+        db: FirebaseFirestore,
+    ) {
+        val displayName = GarminStore.displayName(context) ?: fetchDisplayName(token)?.also {
+            GarminStore.saveDisplayName(context, it)
+        } ?: return
+
+        val collection = db.collection("users").document(uid).collection("dailyHealth")
+        val today = java.time.LocalDate.now()
+
+        for (offset in 0 until 14) {
+            val date = today.minusDays(offset.toLong()).toString()
+
+            val sleep = getJson(
+                token,
+                "/wellness-service/wellness/dailySleepData/$displayName?date=$date&nonSleepBufferMinutes=60",
+            )
+            val sleepDto = sleep?.optJSONObject("dailySleepDTO")
+            val sleepSeconds = sleepDto?.optDouble("sleepTimeSeconds", 0.0) ?: 0.0
+            val sleepScore = sleepDto?.optJSONObject("sleepScores")?.optDouble("overallValue", 0.0)
+                ?.takeIf { it > 0 }
+
+            val summary = getJson(
+                token,
+                "/usersummary-service/usersummary/daily/$displayName?calendarDate=$date",
+            )
+            val steps = summary?.optDouble("totalSteps", 0.0)?.takeIf { it > 0 }
+
+            val hrvJson = getJson(token, "/hrv-service/hrv/$date")
+            val hrv = hrvJson?.optJSONObject("hrvSummary")
+                ?.optDouble("lastNightAvg", 0.0)
+                ?.takeIf { it > 0 }
+
+            if (sleepSeconds <= 0 && steps == null && hrv == null) continue
+
+            collection.document(date).set(
+                mapOf(
+                    "date" to date,
+                    "sleepMinutes" to if (sleepSeconds > 0) (sleepSeconds / 60.0).roundToInt() else null,
+                    "sleepScore" to sleepScore?.roundToInt(),
+                    "steps" to steps?.toInt(),
+                    "hrv" to hrv,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                ),
+                SetOptions.merge(),
+            ).await()
+        }
+    }
+
+    private fun fetchDisplayName(token: String): String? =
+        getJson(token, "/userprofile-service/socialProfile")
+            ?.optString("displayName")
+            ?.takeIf { it.isNotBlank() }
+
     private fun parse(json: JSONObject?): GarminActivity? {
         if (json == null) return null
 
@@ -224,6 +323,10 @@ object GarminSync {
             startedAt = started,
             minutes = minutes.coerceAtMost(1440),
             km = if (meters > 0) Math.round(meters / 10.0) / 100.0 else null,
+            avgHr = json.optDouble("averageHR", 0.0).takeIf { it > 0 },
+            maxHr = json.optDouble("maxHR", 0.0).takeIf { it > 0 },
+            elevationGain = json.optDouble("elevationGain", 0.0).takeIf { it > 0 },
+            calories = json.optDouble("calories", 0.0).takeIf { it > 0 },
         )
     }
 

@@ -1,13 +1,20 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { updateProfile } from 'firebase/auth'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  EmailAuthProvider,
+  deleteUser,
+  reauthenticateWithCredential,
+  updateProfile,
+} from 'firebase/auth'
+import { Timestamp } from 'firebase/firestore'
 
 import {
   Badge,
   Button,
   Card,
+  Dialog,
   ErrorNote,
   Field,
   Input,
@@ -17,10 +24,24 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
-import { createDoc, fetchAll, patchDoc, removeDoc, useCollection, useDoc, userPath, writeDoc } from '@/lib/db'
+import {
+  createDoc,
+  fetchAll,
+  patchDoc,
+  removeDoc,
+  useCollection,
+  useDoc,
+  userPath,
+  writeDoc,
+} from '@/lib/db'
 import { auth } from '@/lib/firebase'
 import { useTheme } from '@/lib/theme'
-import { DAY_LONG, minutesToTimeInput, timeInputToMinutes } from '@/lib/time'
+import {
+  DAY_LONG,
+  minutesToTimeInput,
+  termState,
+  timeInputToMinutes,
+} from '@/lib/time'
 import { useToast } from '@/lib/toast'
 import {
   DEFAULT_PROFILE,
@@ -28,6 +49,31 @@ import {
   type Profile,
   type ThemeMode,
 } from '@/lib/types'
+
+const RESTORE_COLLECTIONS = [
+  'subjects',
+  'classes',
+  'tasks',
+  'studySessions',
+  'ptSessions',
+  'alarms',
+  'alarmState',
+  'dailyHealth',
+] as const
+
+function revive(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(revive)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.seconds === 'number' && typeof record.nanoseconds === 'number') {
+      return new Timestamp(record.seconds, record.nanoseconds)
+    }
+    const next: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(record)) next[key] = revive(entry)
+    return next
+  }
+  return value
+}
 
 export default function SettingsPage() {
   const { user, signOutNow } = useAuth()
@@ -47,6 +93,13 @@ export default function SettingsPage() {
   const [alarmTime, setAlarmTime] = useState('07:00')
   const [alarmLead, setAlarmLead] = useState('0')
 
+  const [termName, setTermName] = useState('')
+  const [termStart, setTermStart] = useState('')
+  const [termEnd, setTermEnd] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const restoreRef = useRef<HTMLInputElement>(null)
+
   const detectedZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     [],
@@ -55,6 +108,13 @@ export default function SettingsPage() {
   useEffect(() => {
     setName(user?.displayName ?? '')
   }, [user])
+
+  useEffect(() => {
+    if (!profile.item) return
+    setTermName(profile.item.termName ?? '')
+    setTermStart(profile.item.termStart ?? '')
+    setTermEnd(profile.item.termEnd ?? '')
+  }, [profile.item])
 
   if (!user) return null
 
@@ -149,22 +209,29 @@ export default function SettingsPage() {
     setBusy('export')
     try {
       const base = userPath(user.uid)
-      const [subjects, classes, tasks, studySessions, alarmDocs, metaDocs] = await Promise.all([
-        fetchAll<Record<string, unknown>>(`${base}/subjects`),
-        fetchAll<Record<string, unknown>>(`${base}/classes`),
-        fetchAll<Record<string, unknown>>(`${base}/tasks`),
-        fetchAll<Record<string, unknown>>(`${base}/studySessions`),
-        fetchAll<Record<string, unknown>>(`${base}/alarms`),
-        fetchAll<Record<string, unknown>>(`${base}/meta`),
-      ])
+      const [subjects, classes, tasks, studySessions, ptSessions, dailyHealth, alarmDocs, metaDocs] =
+        await Promise.all([
+          fetchAll<Record<string, unknown>>(`${base}/subjects`),
+          fetchAll<Record<string, unknown>>(`${base}/classes`),
+          fetchAll<Record<string, unknown>>(`${base}/tasks`),
+          fetchAll<Record<string, unknown>>(`${base}/studySessions`),
+          fetchAll<Record<string, unknown>>(`${base}/ptSessions`),
+          fetchAll<Record<string, unknown>>(`${base}/dailyHealth`),
+          fetchAll<Record<string, unknown>>(`${base}/alarms`),
+          fetchAll<Record<string, unknown>>(`${base}/meta`),
+        ])
 
       const payload = {
+        format: 'paulplan-backup',
+        version: 2,
         exportedAt: new Date().toISOString(),
         user: { id: user.uid, email: user.email, displayName: user.displayName },
         subjects,
         classes,
         tasks,
         studySessions,
+        ptSessions,
+        dailyHealth,
         alarms: alarmDocs,
         meta: metaDocs,
       }
@@ -176,10 +243,218 @@ export default function SettingsPage() {
       link.download = `paulplan-export-${new Date().toISOString().slice(0, 10)}.json`
       link.click()
       URL.revokeObjectURL(url)
-      toast({ title: 'Export downloaded', tone: 'success' })
+      toast({ title: 'Backup downloaded', tone: 'success' })
     } catch (cause) {
       console.error(cause)
       toast({ title: 'Could not export your data', tone: 'danger' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function restoreData(file: File) {
+    if (!user) return
+    setBusy('restore')
+    try {
+      const parsed = revive(JSON.parse(await file.text())) as Record<string, unknown>
+      if (parsed.format !== 'paulplan-backup' && !parsed.subjects && !parsed.tasks) {
+        throw new Error('That file is not a PaulPlan backup.')
+      }
+
+      const base = userPath(user.uid)
+      let restored = 0
+
+      for (const name of RESTORE_COLLECTIONS) {
+        const docs = (parsed[name] as Array<Record<string, unknown>> | undefined) ?? []
+        for (const entry of docs) {
+          const { id, ...data } = entry
+          if (!id) continue
+          const { updatedAt: _updatedAt, createdAt: _createdAt, ...rest } = data
+          await writeDoc(`${base}/${name}/${id}`, rest)
+          restored += 1
+        }
+      }
+
+      const metaDocs = (parsed.meta as Array<Record<string, unknown>> | undefined) ?? []
+      for (const entry of metaDocs) {
+        const { id, ...data } = entry
+        if (!id) continue
+        const { updatedAt: _updatedAt, createdAt: _createdAt, ...rest } = data
+        await writeDoc(`${base}/meta/${id}`, rest)
+        restored += 1
+      }
+
+      toast({
+        title: `Restored ${restored} documents`,
+        description: 'Merged with what was already on this account.',
+        tone: 'success',
+      })
+    } catch (cause) {
+      console.error(cause)
+      toast({
+        title: 'Could not restore that backup',
+        description: cause instanceof Error ? cause.message : undefined,
+        tone: 'danger',
+      })
+    } finally {
+      if (restoreRef.current) restoreRef.current.value = ''
+      setBusy(null)
+    }
+  }
+
+  async function saveTerm() {
+    if (!profilePath) return
+    await updateProfileDoc(
+      {
+        termName: termName.trim(),
+        termStart: termStart || null,
+        termEnd: termEnd || null,
+      },
+      'Term saved',
+    )
+  }
+
+  async function archiveTerm() {
+    if (!user) return
+    if (
+      !window.confirm(
+        'Archive this term? Active subjects and every task will be hidden, and the weekly timetable will be cleared. Study sessions and training history are kept.',
+      )
+    ) {
+      return
+    }
+
+    setBusy('archive')
+    try {
+      const base = userPath(user.uid)
+      const [subjects, tasks, classes] = await Promise.all([
+        fetchAll<Record<string, unknown>>(`${base}/subjects`),
+        fetchAll<Record<string, unknown>>(`${base}/tasks`),
+        fetchAll<Record<string, unknown>>(`${base}/classes`),
+      ])
+
+      for (const subject of subjects) {
+        await patchDoc(`${base}/subjects`, String(subject.id), { archived: true })
+      }
+      for (const task of tasks) {
+        await patchDoc(`${base}/tasks`, String(task.id), { archived: true })
+      }
+      for (const entry of classes) {
+        await removeDoc(`${base}/classes`, String(entry.id))
+      }
+
+      toast({ title: 'Term archived', description: 'Start fresh when the next one begins.', tone: 'success' })
+    } catch (cause) {
+      console.error(cause)
+      toast({ title: 'Could not archive the term', tone: 'danger' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function restoreArchived() {
+    if (!user) return
+    setBusy('unarchive')
+    try {
+      const base = userPath(user.uid)
+      const [subjects, tasks] = await Promise.all([
+        fetchAll<Record<string, unknown>>(`${base}/subjects`),
+        fetchAll<Record<string, unknown>>(`${base}/tasks`),
+      ])
+      for (const subject of subjects) {
+        if (subject.archived) {
+          await patchDoc(`${base}/subjects`, String(subject.id), { archived: false })
+        }
+      }
+      for (const task of tasks) {
+        if (task.archived) {
+          await patchDoc(`${base}/tasks`, String(task.id), { archived: false })
+        }
+      }
+      toast({ title: 'Archived items restored', tone: 'success' })
+    } catch (cause) {
+      console.error(cause)
+      toast({ title: 'Could not restore archived items', tone: 'danger' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function enableBrowserNotifications() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      toast({ title: 'This browser has no notification support', tone: 'danger' })
+      return
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') {
+      toast({ title: 'Notifications were not allowed', tone: 'danger' })
+      return
+    }
+    await updateProfileDoc(
+      {
+        notifications: {
+          ...(meta.notifications ?? {
+            enabled: true,
+            leadMinutes: 10,
+            sound: true,
+            vibrate: true,
+          }),
+          browser: true,
+        },
+      },
+      'Browser notifications enabled',
+    )
+  }
+
+  async function deleteAccount() {
+    if (!user) return
+    setBusy('delete')
+    try {
+      const current = auth().currentUser
+      if (!current) throw new Error('You are not signed in.')
+
+      const hasPassword = current.providerData.some((provider) => provider.providerId === 'password')
+      if (!hasPassword) {
+        throw new Error('Sign in with email and password to delete the account in-app.')
+      }
+      if (!current.email) throw new Error('This account has no email address.')
+
+      await reauthenticateWithCredential(
+        current,
+        EmailAuthProvider.credential(current.email, deletePassword),
+      )
+
+      const base = userPath(user.uid)
+      for (const name of RESTORE_COLLECTIONS) {
+        const docs = await fetchAll<Record<string, unknown>>(`${base}/${name}`)
+        for (const entry of docs) {
+          await removeDoc(`${base}/${name}`, String(entry.id))
+        }
+      }
+      const metaDocs = await fetchAll<Record<string, unknown>>(`${base}/meta`)
+      for (const entry of metaDocs) {
+        await removeDoc(`${base}/meta`, String(entry.id))
+      }
+      await removeDoc('users', user.uid)
+      await deleteUser(current)
+
+      setDeleteOpen(false)
+      toast({ title: 'Account deleted', tone: 'success' })
+      router.replace('/login')
+    } catch (cause) {
+      console.error(cause)
+      const code =
+        typeof cause === 'object' && cause !== null && 'code' in cause
+          ? String((cause as { code: unknown }).code)
+          : ''
+      toast({
+        title:
+          code === 'auth/wrong-password' || code === 'auth/invalid-credential'
+            ? 'That password is not right'
+            : 'Could not delete the account',
+        description: cause instanceof Error ? cause.message : undefined,
+        tone: 'danger',
+      })
     } finally {
       setBusy(null)
     }
@@ -257,6 +532,72 @@ export default function SettingsPage() {
               { value: 'dark', label: 'Dark' },
             ]}
           />
+        </Card>
+      </section>
+
+      <section aria-labelledby="term">
+        <h2 id="term" className="mb-3 text-base font-medium text-ink">
+          Term
+        </h2>
+        <Card className="p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Name" htmlFor="term-name">
+              <Input
+                id="term-name"
+                value={termName}
+                onChange={(event) => setTermName(event.target.value)}
+                placeholder="Semester 5"
+              />
+            </Field>
+            <Field label="Starts" htmlFor="term-start">
+              <Input
+                id="term-start"
+                type="date"
+                value={termStart}
+                onChange={(event) => setTermStart(event.target.value)}
+              />
+            </Field>
+            <Field label="Ends" htmlFor="term-end">
+              <Input
+                id="term-end"
+                type="date"
+                value={termEnd}
+                onChange={(event) => setTermEnd(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-ink-muted">
+              {termState(meta) === 'before'
+                ? 'The term has not started. Weekly classes are hidden on Today.'
+                : termState(meta) === 'after'
+                  ? 'The term has ended. Weekly classes are hidden on Today.'
+                  : termState(meta) === 'active'
+                    ? 'In term. Classes follow your weekly timetable.'
+                    : 'No dates set. Classes always show.'}
+            </p>
+            <Button onClick={saveTerm} disabled={busy !== null}>
+              Save term
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Archive this term</p>
+              <p className="text-sm text-ink-muted">
+                Hide all subjects and tasks, and clear the weekly timetable. History is kept.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={restoreArchived} disabled={busy === 'unarchive'}>
+                Restore archived
+              </Button>
+              <Button variant="danger" onClick={archiveTerm} disabled={busy === 'archive'}>
+                {busy === 'archive' ? 'Archiving…' : 'Archive term'}
+              </Button>
+            </div>
+          </div>
         </Card>
       </section>
 
@@ -379,37 +720,57 @@ export default function SettingsPage() {
         <h2 id="reminders" className="mb-3 text-base font-medium text-ink">
           Reminder defaults
         </h2>
-        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-ink">Class heads-up</p>
-            <p className="text-sm text-ink-muted">
-              How early a class reminder appears. Used on the web and for new phone alarms.
-            </p>
-          </div>
-          <Select
-            aria-label="Class reminder lead time"
-            className="w-48"
-            value={String(leadMinutes)}
-            onChange={(event) =>
-              void updateProfileDoc(
-                {
-                  notifications: {
-                    enabled: true,
-                    leadMinutes: Number(event.target.value),
-                    sound: true,
-                    vibrate: true,
+        <Card className="flex flex-col gap-3 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Class heads-up</p>
+              <p className="text-sm text-ink-muted">
+                How early a class reminder appears. Used on the web and for new phone alarms.
+              </p>
+            </div>
+            <Select
+              aria-label="Class reminder lead time"
+              className="w-48"
+              value={String(leadMinutes)}
+              onChange={(event) =>
+                void updateProfileDoc(
+                  {
+                    notifications: {
+                      ...(meta.notifications ?? {
+                        enabled: true,
+                        sound: true,
+                        vibrate: true,
+                      }),
+                      leadMinutes: Number(event.target.value),
+                    },
                   },
-                },
-                'Reminder default saved',
-              )
-            }
-          >
-            <option value="0">At the time</option>
-            <option value="5">5 minutes before</option>
-            <option value="10">10 minutes before</option>
-            <option value="15">15 minutes before</option>
-            <option value="30">30 minutes before</option>
-          </Select>
+                  'Reminder default saved',
+                )
+              }
+            >
+              <option value="0">At the time</option>
+              <option value="5">5 minutes before</option>
+              <option value="10">10 minutes before</option>
+              <option value="15">15 minutes before</option>
+              <option value="30">30 minutes before</option>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Browser notifications</p>
+              <p className="text-sm text-ink-muted">
+                Show a desktop notification while a PaulPlan tab is open. Phones still fire alarms.
+              </p>
+            </div>
+            {meta.notifications?.browser && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? (
+              <Badge tone="success">Enabled</Badge>
+            ) : (
+              <Button variant="secondary" onClick={enableBrowserNotifications} disabled={busy !== null}>
+                Enable
+              </Button>
+            )}
+          </div>
         </Card>
       </section>
 
@@ -438,23 +799,106 @@ export default function SettingsPage() {
         <h2 id="data" className="mb-3 text-base font-medium text-ink">
           Your data
         </h2>
-        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-ink">Export everything</p>
-            <p className="text-sm text-ink-muted">
-              Subjects, classes, tasks, sessions, and alarms as JSON. Timestamps are epoch objects.
-            </p>
+        <Card className="divide-y divide-border">
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Back up everything</p>
+              <p className="text-sm text-ink-muted">
+                Subjects, classes, tasks, sessions, health, alarms and settings as JSON.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={exportData} disabled={busy === 'export'}>
+              {busy === 'export' ? 'Preparing…' : 'Download JSON'}
+            </Button>
           </div>
-          <Button variant="secondary" onClick={exportData} disabled={busy === 'export'}>
-            {busy === 'export' ? 'Preparing…' : 'Download JSON'}
-          </Button>
+
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Restore a backup</p>
+              <p className="text-sm text-ink-muted">
+                Merge a PaulPlan JSON export into this account. Existing documents with the same id
+                are replaced.
+              </p>
+            </div>
+            <div>
+              <input
+                ref={restoreRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) void restoreData(file)
+                }}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => restoreRef.current?.click()}
+                disabled={busy === 'restore'}
+              >
+                {busy === 'restore' ? 'Restoring…' : 'Choose file'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-ink">Delete account</p>
+              <p className="text-sm text-ink-muted">
+                Permanently delete your PaulPlan data and sign-in. This cannot be undone.
+              </p>
+            </div>
+            <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+              Delete account
+            </Button>
+          </div>
         </Card>
       </section>
 
       <p className="text-xs leading-relaxed text-ink-muted">
-        PaulPlan v0.1 · Firestore Spark plan · no server, no analytics. Deleting your account is done
-        from the Firebase console for now.
+        PaulPlan v0.1 · Firestore Spark plan · no server, no analytics.
       </p>
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false)
+          setDeletePassword('')
+        }}
+        title="Delete your account?"
+        description="Every subject, class, task, session and setting will be deleted. This cannot be undone."
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDeleteOpen(false)
+                setDeletePassword('')
+              }}
+              disabled={busy === 'delete'}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={deleteAccount}
+              disabled={busy === 'delete' || deletePassword.length === 0}
+            >
+              {busy === 'delete' ? 'Deleting…' : 'Delete everything'}
+            </Button>
+          </>
+        }
+      >
+        <Field label="Confirm your password" htmlFor="delete-password">
+          <Input
+            id="delete-password"
+            type="password"
+            autoComplete="current-password"
+            value={deletePassword}
+            onChange={(event) => setDeletePassword(event.target.value)}
+          />
+        </Field>
+      </Dialog>
     </div>
   )
 }

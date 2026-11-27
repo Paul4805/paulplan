@@ -285,6 +285,31 @@ describe('physical training', () => {
   })
 })
 
+describe('daily health', () => {
+  const health = (overrides: Record<string, unknown> = {}) => ({
+    date: '2026-11-27',
+    sleepMinutes: 430,
+    steps: 8123,
+    hrv: 54.5,
+    updatedAt: serverTimestamp(),
+    ...overrides,
+  })
+
+  it('accepts a wellbeing summary owned by the user', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), path('dailyHealth/2026-11-27')), health()))
+    await assertFails(setDoc(doc(asBob(), path('dailyHealth/2026-11-27')), health()))
+  })
+
+  it('rejects malformed dates and non-numeric metrics', async () => {
+    await assertFails(
+      setDoc(doc(asAlice(), path('dailyHealth/2026-11-27')), health({ date: '27-11-2026' })),
+    )
+    await assertFails(
+      setDoc(doc(asAlice(), path('dailyHealth/2026-11-27')), health({ steps: 'lots' })),
+    )
+  })
+})
+
 describe('profile', () => {
   it('keeps the profile schema but allows other meta documents', async () => {
     const profile = {

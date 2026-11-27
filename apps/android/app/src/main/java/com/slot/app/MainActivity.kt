@@ -59,6 +59,7 @@ import com.slot.app.core.design.SlotTheme
 import com.slot.app.core.design.Tokens
 import com.slot.app.data.SlotViewModel
 import com.slot.app.ui.FocusScreen
+import com.slot.app.ui.OnboardingDialog
 import com.slot.app.ui.SettingsScreen
 import com.slot.app.ui.StatsScreen
 import com.slot.app.ui.SubjectsScreen
@@ -106,6 +107,12 @@ private fun SlotRoot(vm: SlotViewModel) {
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val context = LocalContext.current
+    val appPrefs = remember { context.getSharedPreferences("slot_app", android.content.Context.MODE_PRIVATE) }
+    var showOnboarding by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showOnboarding = !appPrefs.getBoolean("onboarding_done", false)
+    }
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -173,6 +180,15 @@ private fun SlotRoot(vm: SlotViewModel) {
             composable("settings") { SettingsScreen(vm) }
             composable("subjects") { SubjectsScreen(vm) }
         }
+    }
+
+    if (showOnboarding) {
+        OnboardingDialog(
+            onDone = {
+                appPrefs.edit().putBoolean("onboarding_done", true).apply()
+                showOnboarding = false
+            },
+        )
     }
 }
 

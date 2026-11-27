@@ -30,6 +30,7 @@ users/{uid}/terms/{termId}               optional campus timezone + term bounds
 users/{uid}/tasks/{taskId}
 users/{uid}/studySessions/{sessionId}
 users/{uid}/ptSessions/{sessionId}
+users/{uid}/dailyHealth/{YYYY-MM-DD}      Garmin sleep, steps and HRV by date
 users/{uid}/alarms/{alarmId}             alarm definitions
 users/{uid}/alarmState/{eventId}         sparse snooze/dismiss actions
 ```
@@ -65,14 +66,17 @@ One document. `timezone` is the device's IANA zone at last save, used as the def
 | `weekStartsOn` | int (1 = Monday) | no |
 | `theme` | `'system' \| 'light' \| 'dark'` | no |
 | `pomodoro` | `{ focus: int, short: int, long: int }` minutes | no |
-| `notifications` | `{ enabled: bool, leadMinutes: int, sound: bool, vibrate: bool }` | no |
+| `notifications` | `{ enabled: bool, leadMinutes: int, sound: bool, vibrate: bool, browser?: bool }` | no |
+| `termName` | string | no; shown on Stats and Settings |
+| `termStart` / `termEnd` | string `YYYY-MM-DD` | no; weekly classes hide outside this window |
 | `schemaVersion` | int | yes |
 | `updatedAt` | timestamp | yes |
 
 ```json
 { "timezone": "Asia/Kolkata", "weekStartsOn": 1, "theme": "system",
   "pomodoro": { "focus": 25, "short": 5, "long": 15 },
-  "notifications": { "enabled": true, "leadMinutes": 10, "sound": true, "vibrate": true },
+  "notifications": { "enabled": true, "leadMinutes": 10, "sound": true, "vibrate": true, "browser": false },
+  "termName": "Semester 5", "termStart": "2026-08-01", "termEnd": "2026-12-15",
   "schemaVersion": 1, "updatedAt": "<ts>" }
 ```
 
@@ -163,11 +167,19 @@ Resolution order for a class's timezone: `terms/{termId}.timezone` → `meta/pro
 | `priority` | `'low' \| 'medium' \| 'high'` | yes |
 | `status` | `'todo' \| 'doing' \| 'done'` | yes |
 | `completedAt` | timestamp \| null | no |
-| `order` | number, midpoint-inserted | no |```json
+| `order` | number, midpoint-inserted | no |
+| `remind` | bool | no; creates a one-off task reminder |
+| `alarmId` | string \| null | no; the linked `alarms` document |
+| `archived` | bool | no; hidden after a term is archived |
+
+```json
 { "title": "Problem set 3", "subjectId": "cs301",
   "dueAt": "<ts>", "priority": "high", "status": "todo",
-  "completedAt": null, "order": 1000, "createdAt": "<ts>", "updatedAt": "<ts>" }
+  "completedAt": null, "order": 1000, "remind": true, "alarmId": "a1",
+  "archived": false, "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
+
+When `remind` is on and `dueAt` is set, the client creates a `kind: 'task'` alarm with `onceAt = dueAt`. Completing the task disables that alarm; deleting the task deletes it.
 
 ### `studySessions`
 
@@ -198,6 +210,9 @@ Sessions are append-only and immutable in practice; editing a past session rewri
 | `distanceKm` | number ≥ 0 \| null | no (runs only) |
 | `source` | `'manual' \| 'strava-csv' \| 'garmin-json' \| 'garmin-api'` | yes |
 | `externalId` | string | no; dedupe key for imports |
+| `avgHr` / `maxHr` | number | no; Garmin summary |
+| `elevationGain` | number (metres) | no; Garmin summary |
+| `calories` | number (kcal) | no; Garmin summary |
 | `notes` | string | no |
 
 ```json
@@ -215,6 +230,26 @@ Three ingestion paths:
 - **`strava-csv`** — a Strava `activities.csv`, kept as a fallback.
 
 `meta/garmin` holds only sync status (`enabled`, `lastSyncAt`, `lastImported`, `requestedAt`), never the key. The profile doc keeps its stricter schema; other meta docs only need a server `updatedAt`.
+
+### `dailyHealth` (wellbeing summaries)
+
+One document per local calendar date, written by the Android Garmin sync agent.
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `date` | string `YYYY-MM-DD`; must match the document id | yes |
+| `sleepMinutes` | int \| null | no |
+| `sleepScore` | int \| null | no |
+| `steps` | int \| null | no |
+| `hrv` | number (ms) \| null | no |
+| `updatedAt` | timestamp | yes |
+
+```json
+{ "date": "2026-11-27", "sleepMinutes": 430, "sleepScore": 78,
+  "steps": 8123, "hrv": 54.5, "updatedAt": "<ts>" }
+```
+
+The phone refreshes the last 14 days on each sync. Missing metrics are stored as `null`, so one unavailable endpoint cannot erase the others.
 
 ### `alarms` (definitions)
 

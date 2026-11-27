@@ -30,9 +30,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.slot.app.core.design.LocalTagPalette
 import com.slot.app.core.design.Tokens
+import com.slot.app.data.Profile
 import com.slot.app.data.Subject
 import com.slot.app.data.TaskItem
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
 
@@ -47,6 +49,24 @@ fun dateLabel(date: Date?): String =
 
 fun shortDateLabel(date: Date): String =
     SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(date)
+
+/** True when the current date is inside the configured term (or no term set). */
+fun termActive(profile: Profile, today: LocalDate = LocalDate.now()): Boolean {
+    val start = profile.termStart?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    val end = profile.termEnd?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    if (start == null && end == null) return true
+    return (start == null || !today.isBefore(start)) && (end == null || !today.isAfter(end))
+}
+
+fun termMessage(profile: Profile, today: LocalDate = LocalDate.now()): String? {
+    if (termActive(profile, today)) return null
+    val start = profile.termStart?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    return if (start != null && today.isBefore(start)) {
+        "The term has not started, so weekly classes are hidden."
+    } else {
+        "The term has ended, so weekly classes are hidden."
+    }
+}
 
 @Composable
 fun tagColor(name: String): Color {

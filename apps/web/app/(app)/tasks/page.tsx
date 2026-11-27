@@ -58,7 +58,10 @@ export default function TasksPage() {
   )
 
   const visible = useMemo(
-    () => tasks.items.filter((task) => !subjectFilter || task.subjectId === subjectFilter),
+    () =>
+      tasks.items.filter(
+        (task) => !task.archived && (!subjectFilter || task.subjectId === subjectFilter),
+      ),
     [tasks.items, subjectFilter],
   )
 
@@ -77,6 +80,7 @@ export default function TasksPage() {
   const openCount = visible.filter((task) => task.status !== 'done').length
 
   async function move(task: Task, status: TaskStatus) {
+    if (!user) return
     if (task.status === status) return
     const target = tasks.items.filter((item) => item.status === status)
     const order =
@@ -90,6 +94,11 @@ export default function TasksPage() {
         order,
         completedAt: status === 'done' ? Timestamp.now() : null,
       })
+      if (task.alarmId) {
+        await patchDoc(userPath(user.uid, 'alarms'), task.alarmId, {
+          enabled: status !== 'done',
+        }).catch(() => undefined)
+      }
     } catch (cause) {
       console.error(cause)
       toast({ title: 'Could not move the task', tone: 'danger' })

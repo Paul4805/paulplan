@@ -12,12 +12,28 @@ Built by [J Paul Masillamni](https://github.com/Paul4805). Named for him, design
 |---|---|
 | **Timetable** | Weekly classes and free-standing events (talks, meetings, church, football). Month grid, week hour-grid, day list. Each entry carries a colour. |
 | **Tasks** | Deadlines, subject links, priorities, todo/doing/done; list and drag-and-drop kanban on the web. |
-| **Study** | Pomodoro timer that survives a closed tab, session logging, per-subject progress and weekly targets. |
-| **Training** | Runs, football, gym. Automatic Garmin sync from the Android app, plus a Garmin export importer and a Strava CSV fallback. |
-| **Stats** | Academic and training totals, 14-day trends, study-vs-training balance, per-subject and per-type breakdowns. |
-| **Alarms** | Exact local alarms on Android (`setAlarmClock`), full-screen over the lock screen, snooze/dismiss synced back to Firestore. Web shows in-page reminders while a tab is open. |
+| **Study** | Pomodoro timer that survives a closed tab, plus a foreground service on Android that keeps counting and logs the session. Session logging, per-subject progress and weekly targets. |
+| **Training** | Runs, football, gym. Automatic Garmin sync from the Android app, including sleep, steps and HRV, plus per-session detail (pace, heart rate, elevation, calories). Garmin export and Strava CSV remain fallbacks. |
+| **Stats** | Week / month / term ranges, 12-week heatmaps, streaks, academic and training totals, study-vs-training balance, recovery cards, and per-subject/type breakdowns. |
+| **Alarms** | Exact local alarms on Android (`setAlarmClock`), full-screen over the lock screen, snooze/dismiss synced back to Firestore. Task due-date reminders, a one-tap test alarm, and a first-run permission check. Web shows in-page and desktop notifications while a tab is open. |
+| **Term** | Term name and dates; weekly classes hide outside the window, and "archive term" hides subjects/tasks and clears the timetable without losing history. |
+| **Data** | JSON backup and restore, plus in-app account deletion on web and Android. |
 | **Sync** | Firestore realtime listeners on both clients, IndexedDB/native cache for offline writes. No custom queue. |
 | **Auth** | Google and email/password, one account on both clients. |
+
+## Screenshots
+
+![Stats: study and training heatmaps, streaks, range filter, recovery, and recent sessions](docs/screenshots/stats.png)
+
+![Run detail: duration, distance, pace, heart rate, elevation and calories](docs/screenshots/stats-detail.png)
+
+| Today | Week timetable |
+| --- | --- |
+| ![Today](docs/screenshots/today.png) | ![Week timetable](docs/screenshots/timetable.png) |
+
+<p align="center">
+  <img src="docs/screenshots/stats-mobile.png" alt="PaulPlan Stats on a phone" width="360" />
+</p>
 
 ## Stack (and the constraints that shaped it)
 
@@ -76,10 +92,12 @@ No key? **Training → Import** still accepts a Garmin data-export `summarizedAc
 ## Alarms
 
 - Created in Settings (web or phone) and stored in Firestore.
+- Tasks can carry a one-off due-date reminder; completing the task disables it.
 - Android arms the next 21 days with `setAlarmClock`, including class reminders.
 - A direct-boot receiver re-arms from a device-protected snapshot after a reboot, even before first unlock.
 - Fires full-screen over the lock screen with a looping alarm tone and vibration; Done/Snooze writes `alarmState` so other devices know.
-- Android 14+ requires one-time **Full-screen alarms** and **Exact alarms** allowances — Settings → Delivery health shows their state.
+- Android 14+ requires one-time **Full-screen alarms** and **Exact alarms** allowances. The first-run dialog and Settings → Delivery health show their state, and **Send test alarm** verifies the whole path in 10 seconds.
+- Web shows a banner while a tab is open, and can raise a real desktop notification if you enable it in Settings.
 
 ## Data model
 
@@ -93,7 +111,8 @@ users/{uid}/classes/{id}          timetable entries: class (subjectId) or event 
 users/{uid}/terms/{id}            optional term bounds and timezone
 users/{uid}/tasks/{id}            dueAt (UTC), priority, status, order
 users/{uid}/studySessions/{id}    startedAt, endedAt, durationMinutes, source
-users/{uid}/ptSessions/{id}       type, startedAt, durationMinutes, distanceKm, source
+users/{uid}/ptSessions/{id}       type, startedAt, durationMinutes, distanceKm, source, HR
+users/{uid}/dailyHealth/{date}    Garmin sleep, steps and HRV by date
 users/{uid}/alarms/{id}           alarm definitions
 users/{uid}/alarmState/{eventId}  sparse snooze/dismiss actions
 ```
@@ -141,10 +160,10 @@ Fork it, point it at your own Firebase project, and change the name. [`docs/fork
 
 | Check | Result |
 | --- | --- |
-| Web unit tests (time, alarms, Strava CSV, Garmin JSON) | 18 passed |
+| Web unit tests (time, alarms, Strava CSV, Garmin JSON, streaks) | 26 passed |
 | Web typecheck + lint | clean |
 | Static export | 11 routes |
-| Firestore rules (emulator) | 23 passed |
+| Firestore rules (emulator) | 25 passed |
 | Android build + lint | debug APK built; 0 lint errors |
 | Alarms on a Galaxy S23 | fired full-screen, snoozed, survived reboot without launching the app |
 | Garmin sync | 33 activities imported automatically |

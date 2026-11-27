@@ -17,6 +17,12 @@ service cloud.firestore {
       return request.resource.data.updatedAt == request.time;
     }
 
+    // Optional metric fields may be absent or null, but if present they must be
+    // numbers. Used by the daily wellbeing summaries.
+    function optionalNumber(data, key) {
+      return !(key in data) || data[key] == null || data[key] is number;
+    }
+
     match /users/{uid} {
       allow read, write: if isOwner(uid);
 
@@ -126,7 +132,23 @@ service cloud.firestore {
                || request.resource.data.distanceKm == null
                || (request.resource.data.distanceKm is number && request.resource.data.distanceKm >= 0)
              );
-      }      // Sparse user actions on fired alarms. Created only when a user snoozes or
+      }
+
+      // Daily wellbeing summaries pulled from Garmin (sleep, steps, HRV).
+      match /dailyHealth/{date} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && touched()
+          && request.resource.data.date is string
+          && request.resource.data.date.size() == 10
+          && request.resource.data.date == date
+          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && optionalNumber(request.resource.data, 'sleepMinutes')
+          && optionalNumber(request.resource.data, 'steps')
+          && optionalNumber(request.resource.data, 'hrv');
+      }
+
+      // Sparse user actions on fired alarms. Created only when a user snoozes or
       // dismisses; never pre-materialised (there are no Cloud Functions).
       match /alarmState/{eventId} {
         allow read, delete: if isOwner(uid);

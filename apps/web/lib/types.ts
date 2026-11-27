@@ -51,6 +51,9 @@ export interface Task extends WithId {
   status: TaskStatus
   completedAt?: Timestamp | null
   order: number
+  remind?: boolean
+  alarmId?: string | null
+  archived?: boolean
 }
 
 export interface StudySession extends WithId {
@@ -75,6 +78,10 @@ export interface PtSession extends WithId {
   distanceKm?: number | null
   source: 'manual' | 'strava-csv' | 'garmin-json' | 'garmin-api'
   externalId?: string | null
+  avgHr?: number | null
+  maxHr?: number | null
+  elevationGain?: number | null
+  calories?: number | null
   notes?: string
   createdAt?: Timestamp | null
   updatedAt?: Timestamp | null
@@ -115,9 +122,20 @@ export interface Profile {
   timezone?: string
   weekStartsOn?: number
   theme?: ThemeMode
+  termName?: string
+  termStart?: string
+  termEnd?: string
   pomodoro?: { focus: number; short: number; long: number }
-  notifications?: { enabled: boolean; leadMinutes: number; sound: boolean; vibrate: boolean }
+  notifications?: { enabled: boolean; leadMinutes: number; sound: boolean; vibrate: boolean; browser?: boolean }
   schemaVersion?: number
+}
+
+export interface DailyHealth extends WithId {
+  date: string
+  sleepMinutes?: number | null
+  sleepScore?: number | null
+  steps?: number | null
+  hrv?: number | null
 }
 
 export const DEFAULT_PROFILE: Profile = {
@@ -125,6 +143,6 @@ export const DEFAULT_PROFILE: Profile = {
   weekStartsOn: 1,
   theme: 'system',
   pomodoro: { focus: 25, short: 5, long: 15 },
-  notifications: { enabled: true, leadMinutes: 10, sound: true, vibrate: true },
+  notifications: { enabled: true, leadMinutes: 10, sound: true, vibrate: true, browser: false },
   schemaVersion: 1,
 }

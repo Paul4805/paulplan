@@ -406,6 +406,7 @@ function SubjectsInner() {
 
   const [addOpen, setAddOpen] = useState(false)
 
+  const activeSubjects = subjects.items.filter((subject) => !subject.archived)
   const selected = selectedId ? subjects.items.find((item) => item.id === selectedId) : undefined
 
   if (!user) return null
@@ -423,9 +424,9 @@ function SubjectsInner() {
     return (
       <SubjectDetail
         subject={selected}
-        subjects={subjects.items}
+        subjects={activeSubjects}
         classes={classes.items}
-        tasks={tasks.items}
+        tasks={tasks.items.filter((task) => !task.archived)}
         sessions={sessions.items}
       />
     )
@@ -449,7 +450,7 @@ function SubjectsInner() {
         </div>
       ) : null}
 
-      {subjects.items.length === 0 ? (
+      {activeSubjects.length === 0 ? (
         <EmptyState
           title="No subjects yet"
           description="Start with one subject from this term. You can add the rest as you go."
@@ -461,7 +462,7 @@ function SubjectsInner() {
         />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
-          {subjects.items.map((subject) => {
+          {activeSubjects.map((subject) => {
             const weekly = weekMinutes(sessions.items, subject.id)
             const target = (subject.targetHoursPerWeek ?? 0) * 60
             const subjectTasks = tasks.items.filter((task) => task.subjectId === subject.id)

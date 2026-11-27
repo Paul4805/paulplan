@@ -68,6 +68,21 @@ object AlarmScheduler {
         AlarmSnapshot.clear(context)
     }
 
+    /** Fires a full-screen alarm in [seconds] so the user can verify delivery. */
+    fun fireTest(context: Context, seconds: Int = 10) {
+        val now = System.currentTimeMillis()
+        val event = ScheduledAlarm(
+            eventId = "test:$now",
+            alarmId = "test",
+            title = "Test alarm",
+            detail = "Alarms are working on this phone.",
+            triggerAtMillis = now + seconds * 1_000L,
+            fullScreen = true,
+            kind = "alarm",
+        )
+        armOne(context, event)
+    }
+
     private fun fireIntent(context: Context, event: ScheduledAlarm): PendingIntent {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = ACTION_FIRE
@@ -168,6 +183,7 @@ object AlarmSnapshot {
 object NotificationChannels {
     const val ALARMS = "slot.alarms"
     const val REMINDERS = "slot.reminders"
+    const val FOCUS = "slot.focus"
 
     fun create(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -204,6 +220,16 @@ object NotificationChannels {
         }
 
         manager.createNotificationChannels(listOf(alarms, reminders))
+
+        val focus = NotificationChannel(
+            FOCUS,
+            context.getString(R.string.channel_focus),
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = context.getString(R.string.channel_focus_description)
+            setShowBadge(false)
+        }
+        manager.createNotificationChannel(focus)
     }
 
     fun isGranted(context: Context): Boolean {

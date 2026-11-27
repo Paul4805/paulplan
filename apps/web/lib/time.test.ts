@@ -10,6 +10,7 @@ import {
   minutesToLabel,
   minutesToTimeInput,
   startOfWeek,
+  termState,
   timeInputToMinutes,
   weekDates,
 } from './time'
@@ -103,5 +104,18 @@ describe('alarm occurrences', () => {
     }
     expect(alarmMinutesForDate(once as never, friday)).toEqual([405])
     expect(alarmMinutesForDate(once as never, new Date(2026, 10, 28))).toEqual([])
+  })
+})
+
+describe('term windows', () => {
+  it('detects before, during and after a term', () => {
+    const term = { termStart: '2026-09-01', termEnd: '2026-12-15' }
+    expect(termState(term, new Date(2026, 7, 31))).toBe('before')
+    expect(termState(term, new Date(2026, 10, 27))).toBe('active')
+    expect(termState(term, new Date(2026, 11, 16))).toBe('after')
+  })
+
+  it('treats an unset term as always active', () => {
+    expect(termState({}, friday)).toBe('unset')
   })
 })

@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.slot.app.BuildConfig
 import com.slot.app.alarm.AlarmMath
+import com.slot.app.alarm.AlarmScheduler
 import com.slot.app.alarm.NotificationChannels
 import com.slot.app.core.design.Tokens
 import com.slot.app.data.AlarmItem
@@ -62,6 +65,9 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     var name by remember(user?.uid) { mutableStateOf(user?.displayName ?: "") }
     var alarmOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AlarmItem?>(null) }
+    var archiveOpen by remember { mutableStateOf(false) }
+    var deleteOpen by remember { mutableStateOf(false) }
+    var deletePassword by remember { mutableStateOf("") }
     var garminKey by remember { mutableStateOf("") }
     val garminConfigured by vm.garminConfigured.collectAsStateWithLifecycle()
     val garminLastSync by vm.garminLastSync.collectAsStateWithLifecycle()
@@ -253,6 +259,17 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                    Button(onClick = { AlarmScheduler.fireTest(context) }) {
+                        Text("Send test alarm")
+                    }
+                    TextButton(onClick = { refresh += 1 }) { Text("Recheck") }
+                }
+                Text(
+                    "The test fires full-screen in 10 seconds. Lock the phone to check the lock-screen path.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -303,6 +320,63 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column(Modifier.padding(Tokens.Space.s4), verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                Text("Term", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    profile.termName?.takeIf { it.isNotBlank() } ?: "No term name",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    listOfNotNull(profile.termStart, profile.termEnd).joinToString(" – ")
+                        .ifBlank { "Set dates on the web dashboard." },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Edit term dates on the web. Archiving hides every subject and task and clears the weekly timetable; history is kept.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                    OutlinedButton(onClick = { vm.restoreArchived() }) { Text("Restore archived") }
+                    Button(
+                        onClick = { archiveOpen = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) { Text("Archive term") }
+                }
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column(Modifier.padding(Tokens.Space.s4), verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                Text("Your data", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Delete your account and everything under it. Export a backup from the web dashboard first if you want a copy.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = { deleteOpen = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text("Delete account") }
+            }
+        }
+
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         Text(
@@ -327,6 +401,61 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             body = alarm.title,
             onDismiss = { deleteTarget = null },
             onConfirm = { vm.deleteAlarm(alarm.id) },
+        )
+    }
+
+    if (archiveOpen) {
+        ConfirmDeleteDialog(
+            title = "Archive this term?",
+            body = "Every subject and task will be hidden and the weekly timetable cleared. Study and training history stay.",
+            confirmLabel = "Archive",
+            onDismiss = { archiveOpen = false },
+            onConfirm = { vm.archiveTerm() },
+        )
+    }
+
+    if (deleteOpen) {
+        AlertDialog(
+            onDismissRequest = {
+                deleteOpen = false
+                deletePassword = ""
+            },
+            title = { Text("Delete account?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.s2)) {
+                    Text(
+                        "This deletes every subject, class, task, session and setting. It cannot be undone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = deletePassword,
+                        onValueChange = { deletePassword = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.deleteAccount(deletePassword)
+                        deleteOpen = false
+                        deletePassword = ""
+                    },
+                    enabled = deletePassword.isNotBlank(),
+                ) { Text("Delete everything") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        deleteOpen = false
+                        deletePassword = ""
+                    },
+                ) { Text("Cancel") }
+            },
         )
     }
 }

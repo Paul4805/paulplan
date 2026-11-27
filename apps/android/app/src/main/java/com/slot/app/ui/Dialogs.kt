@@ -108,13 +108,14 @@ private fun parseDueDate(date: String, time: String): Date? {
 fun AddTaskDialog(
     subjects: List<Subject>,
     onDismiss: () -> Unit,
-    onSave: (title: String, subjectId: String?, dueAt: Date?, priority: String) -> Unit,
+    onSave: (title: String, subjectId: String?, dueAt: Date?, priority: String, remind: Boolean) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var subjectId by remember { mutableStateOf(subjects.firstOrNull()?.id) }
     var date by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("17:00") }
     var priority by remember { mutableStateOf("medium") }
+    var remind by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -163,6 +164,22 @@ fun AddTaskDialog(
                     onSelect = { priority = it },
                 )
 
+                FieldLabel("Reminder")
+                ChipRow(
+                    values = listOf("off" to "Off", "on" to "Remind me"),
+                    selected = if (remind) "on" else "off",
+                    onSelect = { remind = it == "on" },
+                )
+                Text(
+                    if (date.isBlank()) {
+                        "Set a due date to enable a reminder."
+                    } else {
+                        "Fires on this phone at the due time, even offline."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
@@ -177,7 +194,7 @@ fun AddTaskDialog(
                     } else if (date.isNotBlank() && due == null) {
                         error = "Use YYYY-MM-DD for the date."
                     } else {
-                        onSave(title.trim(), subjectId, due, priority)
+                        onSave(title.trim(), subjectId, due, priority, remind && due != null)
                         onDismiss()
                     }
                 },
@@ -629,6 +646,7 @@ fun AddTrainingDialog(
 fun ConfirmDeleteDialog(
     title: String,
     body: String,
+    confirmLabel: String = "Delete",
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -640,7 +658,7 @@ fun ConfirmDeleteDialog(
             TextButton(onClick = {
                 onConfirm()
                 onDismiss()
-            }) { Text("Delete") }
+            }) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

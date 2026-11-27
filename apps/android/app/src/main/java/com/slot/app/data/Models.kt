@@ -36,6 +36,9 @@ data class TaskItem(
     val status: String = "todo",
     val completedAt: Date? = null,
     val order: Double = 0.0,
+    val remind: Boolean = false,
+    val alarmId: String? = null,
+    val archived: Boolean = false,
 )
 
 data class StudySession(
@@ -56,6 +59,18 @@ data class PtSession(
     val distanceKm: Double? = null,
     val source: String = "manual",
     val notes: String? = null,
+    val avgHr: Double? = null,
+    val maxHr: Double? = null,
+    val elevationGain: Double? = null,
+    val calories: Double? = null,
+)
+
+data class DailyHealth(
+    val date: String,
+    val sleepMinutes: Int? = null,
+    val sleepScore: Int? = null,
+    val steps: Int? = null,
+    val hrv: Double? = null,
 )
 
 data class AlarmItem(
@@ -80,6 +95,10 @@ data class Profile(
     val shortMinutes: Int = 5,
     val theme: String = "system",
     val weekStartsOn: Int = 1,
+    val termName: String? = null,
+    val termStart: String? = null,
+    val termEnd: String? = null,
+    val browserNotifications: Boolean = false,
 ) {
     companion object {
         val Default = Profile()
@@ -118,6 +137,9 @@ fun DocumentSnapshot.toTask(): TaskItem = TaskItem(
     status = getString("status") ?: "todo",
     completedAt = getTimestamp("completedAt")?.toDate(),
     order = getDouble("order") ?: 0.0,
+    remind = getBoolean("remind") ?: false,
+    alarmId = getString("alarmId"),
+    archived = getBoolean("archived") ?: false,
 )
 
 fun DocumentSnapshot.toSession(): StudySession = StudySession(
@@ -138,6 +160,18 @@ fun DocumentSnapshot.toPtSession(): PtSession = PtSession(
     distanceKm = getDouble("distanceKm"),
     source = getString("source") ?: "manual",
     notes = getString("notes"),
+    avgHr = getDouble("avgHr"),
+    maxHr = getDouble("maxHr"),
+    elevationGain = getDouble("elevationGain"),
+    calories = getDouble("calories"),
+)
+
+fun DocumentSnapshot.toDailyHealth(): DailyHealth = DailyHealth(
+    date = id,
+    sleepMinutes = getLong("sleepMinutes")?.toInt(),
+    sleepScore = getLong("sleepScore")?.toInt(),
+    steps = getLong("steps")?.toInt(),
+    hrv = getDouble("hrv"),
 )
 
 fun DocumentSnapshot.toAlarm(): AlarmItem = AlarmItem(
@@ -166,6 +200,10 @@ fun DocumentSnapshot.toProfile(): Profile {
         shortMinutes = (pomodoro?.get("short") as? Number)?.toInt() ?: 5,
         theme = getString("theme") ?: "system",
         weekStartsOn = (getLong("weekStartsOn") ?: 1L).toInt(),
+        termName = getString("termName"),
+        termStart = getString("termStart"),
+        termEnd = getString("termEnd"),
+        browserNotifications = (notifications?.get("browser") as? Boolean) ?: false,
     )
 }
 

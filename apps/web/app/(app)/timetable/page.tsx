@@ -14,7 +14,7 @@ import {
   cn,
 } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
-import { useCollection, userPath } from '@/lib/db'
+import { patchDoc, useCollection, useDoc, userPath } from '@/lib/db'
 import { tagBar, tagTint } from '@/lib/tag'
 import {
   DAY_LABELS,
@@ -25,22 +25,29 @@ import {
   isSameDay,
   minutesToLabel,
   startOfWeek,
+  termState,
   toDate,
   weekDates,
 } from '@/lib/time'
-import type { ClassSlot, Subject, Task } from '@/lib/types'
+import { useToast } from '@/lib/toast'
+import type { ClassSlot, Profile, Subject, Task } from '@/lib/types'
 
 const ROW_MINUTES = 30
 
 export default function TimetablePage() {
   const { user } = useAuth()
+  const toast = useToast()
   const classes = useCollection<ClassSlot>(user ? userPath(user.uid, 'classes') : null)
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
   const tasks = useCollection<Task>(user ? userPath(user.uid, 'tasks') : null)
+  const profile = useDoc<Profile & { id: string }>(
+    user ? userPath(user.uid, 'meta/profile') : null,
+  )
 
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDay, setSelectedDay] = useState(() => dayOfWeek(new Date()) - 1)
+  const [dragId, setDragId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null; kind: 'class' | 'event' }>({
     open: false,
     slot: null,
@@ -59,7 +66,14 @@ export default function TimetablePage() {
     setView(stored ?? (small ? 'day' : 'week'))
   }, [])
 
-  const week = useMemo(() => weekDates(anchor, 1), [anchor])
+  const week = useMemo(
+    () => weekDates(anchor, profile.item?.weekStartsOn ?? 1),
+    [anchor, profile.item?.weekStartsOn],
+  )
+
+  const term = termState(profile.item)
+  const termPaused = term === 'before' || term === 'after'
+  const items = useMemo(() => (termPaused ? [] : classes.items), [termPaused, classes.items])
 
   const subjectById = useMemo(
     () => new Map(subjects.items.map((subject) => [subject.id, subject])),
@@ -69,25 +83,25 @@ export default function TimetablePage() {
   const { start, rows } = useMemo(() => {
     let min = 8 * 60
     let max = 18 * 60
-    for (const slot of classes.items) {
+    for (const slot of items) {
       if (slot.startMinutes < min) min = slot.startMinutes
       if (slot.endMinutes > max) max = slot.endMinutes
     }
     const from = Math.floor(clamp(min, 6 * 60, 12 * 60) / 60) * 60
     const to = Math.ceil(clamp(max, 14 * 60, 23 * 60) / 60) * 60
     return { start: from, end: to, rows: Math.max(1, Math.ceil((to - from) / ROW_MINUTES)) }
-  }, [classes.items])
+  }, [items])
 
   const slotsForDay = useMemo(() => {
     const map = new Map<number, ClassSlot[]>()
-    for (const slot of classes.items) {
+    for (const slot of items) {
       const list = map.get(slot.dayOfWeek) ?? []
       list.push(slot)
       map.set(slot.dayOfWeek, list)
     }
     for (const list of map.values()) list.sort((a, b) => a.startMinutes - b.startMinutes)
     return map
-  }, [classes.items])
+  }, [items])
 
   const monthStart = useMemo(
     () => new Date(anchor.getFullYear(), anchor.getMonth(), 1),
@@ -119,6 +133,32 @@ export default function TimetablePage() {
       setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1))
     } else {
       setAnchor(addDays(anchor, 7 * direction))
+    }
+  }
+
+  async function moveSlot(slotId: string, day: number, row: number) {
+    if (!user) return
+    const slot = items.find((entry) => entry.id === slotId)
+    if (!slot) return
+
+    const duration = slot.endMinutes - slot.startMinutes
+    const nextStart = clamp(start + row * ROW_MINUTES, 0, 1440 - duration)
+    if (slot.dayOfWeek === day && slot.startMinutes === nextStart) return
+
+    try {
+      await patchDoc(userPath(user.uid, 'classes'), slot.id, {
+        dayOfWeek: day,
+        startMinutes: nextStart,
+        endMinutes: nextStart + duration,
+      })
+      toast({
+        title: 'Class moved',
+        description: `${DAY_LONG[day - 1]} · ${minutesToLabel(nextStart)}`,
+        tone: 'success',
+      })
+    } catch (cause) {
+      console.error(cause)
+      toast({ title: 'Could not move that class', tone: 'danger' })
     }
   }
 
@@ -206,7 +246,18 @@ export default function TimetablePage() {
         />
       </div>
 
-      {!classes.loading && classes.items.length === 0 ? (
+      {termPaused ? (
+        <p className="mb-3 rounded-card border border-warning bg-surface px-4 py-3 text-sm text-ink-muted">
+          {term === 'before'
+            ? 'This term has not started yet, so weekly classes are hidden.'
+            : 'This term has ended, so weekly classes are hidden.'}{' '}
+          Adjust the dates or archive the term in{' '}
+          <a href="/settings" className="font-medium text-accent-text hover:underline">
+            Settings
+          </a>
+          .
+        </p>
+      ) : !classes.loading && items.length === 0 ? (
         <p className="mb-3 rounded-card border border-dashed border-border px-4 py-3 text-sm text-ink-muted">
           Nothing scheduled yet. The grid stays here — add a class or an event and it fills in.
         </p>
@@ -318,10 +369,10 @@ export default function TimetablePage() {
               }}
             >
               <div />
-              {week.map((date, index) => (
+              {week.map((date) => (
                 <div key={date.toISOString()} className="border-l border-border px-1 pb-2 text-center">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
-                    {DAY_LABELS[index]}
+                    {DAY_LABELS[dayOfWeek(date) - 1]}
                   </p>
                   <p
                     className={cn(
@@ -347,14 +398,28 @@ export default function TimetablePage() {
                   {week.map((date, dayIndex) => (
                     <div
                       key={`${row}-${dayIndex}`}
-                      className="border-l border-t border-border"
+                      onDragOver={(event) => {
+                        if (!dragId) return
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        const id = dragId ?? event.dataTransfer.getData('text/plain')
+                        setDragId(null)
+                        if (id) void moveSlot(id, dayOfWeek(date), row)
+                      }}
+                      className={cn(
+                        'border-l border-t border-border transition-colors duration-fast',
+                        dragId && 'bg-accent-subtle/60 hover:bg-accent-subtle',
+                      )}
                       style={{ gridColumn: dayIndex + 2, gridRow: row + 2 }}
                     />
                   ))}
                 </Fragment>
               ))}
 
-              {classes.items.map((slot) => {
+              {items.map((slot) => {
                 const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
                 const color = slot.colorOverride ?? subject?.color ?? 'indigo'
                 const label = subject?.name ?? slot.title ?? 'Entry'
@@ -373,8 +438,28 @@ export default function TimetablePage() {
                   <button
                     key={slot.id}
                     type="button"
+                    draggable
+                    onDragStart={(event) => {
+                      setDragId(slot.id)
+                      event.dataTransfer.setData('text/plain', slot.id)
+                      event.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragEnd={() => setDragId(null)}
+                    onDragOver={(event) => {
+                      if (!dragId) return
+                      event.preventDefault()
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      const id = dragId ?? event.dataTransfer.getData('text/plain')
+                      setDragId(null)
+                      if (id) void moveSlot(id, slot.dayOfWeek, fromRow)
+                    }}
                     onClick={() => setDialog({ open: true, slot, kind: slot.kind ?? 'class' })}
-                    className="z-10 m-0.5 overflow-hidden rounded-chip border p-1.5 text-left transition-transform duration-fast hover:-translate-y-px"
+                    className={cn(
+                      'z-10 m-0.5 cursor-grab overflow-hidden rounded-chip border p-1.5 text-left transition-transform duration-fast hover:-translate-y-px active:cursor-grabbing',
+                      dragId === slot.id && 'opacity-50',
+                    )}
                     style={{
                       gridColumn: slot.dayOfWeek + 1,
                       gridRow: `${fromRow + 2} / ${toRow + 2}`,
@@ -397,6 +482,9 @@ export default function TimetablePage() {
                 )
               })}
             </div>
+            <p className="border-t border-border px-3 py-2 text-xs text-ink-muted">
+              Drag a class block to another day or time. Drops snap to 30 minutes.
+            </p>
           </div>
         </div>
       ) : (

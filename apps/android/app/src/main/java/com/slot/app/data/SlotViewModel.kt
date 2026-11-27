@@ -47,7 +47,11 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val tasks: StateFlow<List<TaskItem>> = scoped { it.tasks() }
-        .map { list -> list.sortedWith(compareBy({ statusRank(it.status) }, { it.dueAt?.time ?: Long.MAX_VALUE }, { it.order })) }
+        .map { list ->
+            list
+                .filterNot { it.archived }
+                .sortedWith(compareBy({ statusRank(it.status) }, { it.dueAt?.time ?: Long.MAX_VALUE }, { it.order }))
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val sessions: StateFlow<List<StudySession>> = scoped { it.sessions() }
@@ -59,6 +63,10 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
 
     val ptSessions: StateFlow<List<PtSession>> = scoped { it.ptSessions() }
         .map { list -> list.sortedByDescending { it.startedAt?.time ?: 0L } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val dailyHealth: StateFlow<List<DailyHealth>> = scoped { it.dailyHealth() }
+        .map { list -> list.sortedByDescending { it.date } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val profile: StateFlow<Profile> = _user.flatMapLatest { current ->
@@ -87,7 +95,20 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
         dueAt: Date?,
         priority: String,
         status: String,
-    ) = write { it.addTask(title, notes, subjectId, dueAt, priority, status) }
+        remind: Boolean = false,
+    ) = write {
+        it.addTask(
+            title,
+            notes,
+            subjectId,
+            dueAt,
+            priority,
+            status,
+            remind,
+            profile.value.timezone ?: java.time.ZoneId.systemDefault().id,
+            profile.value.leadMinutes,
+        )
+    }
 
     fun addEntry(
         kind: String,
@@ -174,6 +195,10 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTheme(theme: String) = write { it.updateTheme(theme) }
 
+    fun archiveTerm() = write { it.archiveTerm() }
+
+    fun restoreArchived() = write { it.restoreArchived() }
+
     /* --------------------------------------------------------------- auth --- */
 
     fun signIn(email: String, password: String) {
@@ -206,6 +231,15 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() = AuthRepository.signOut()
+
+    fun deleteAccount(password: String) {
+        val db = database ?: return
+        viewModelScope.launch {
+            runCatching { AuthRepository.deleteAccount(password, db) }
+                .onSuccess { show("Account deleted") }
+                .onFailure { show(authMessage(it)) }
+        }
+    }
 
     fun renameUser(name: String) {
         if (AuthRepository.updateDisplayName(name.trim())) show("Name updated")
