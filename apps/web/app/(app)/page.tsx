@@ -23,6 +23,7 @@ import {
   formatDue,
   minutesNow,
   minutesToLabel,
+  occursOnDate,
   termState,
   toDate,
 } from '@/lib/time'
@@ -84,9 +85,9 @@ export default function TodayPage() {
       termPaused
         ? []
         : classes.items
-            .filter((slot) => slot.dayOfWeek === weekday)
+            .filter((slot) => occursOnDate(slot, today))
             .sort((a, b) => a.startMinutes - b.startMinutes),
-    [classes.items, weekday, termPaused],
+    [classes.items, today, termPaused],
   )
 
   const currentClass = todaysClasses.find(

@@ -184,6 +184,7 @@ object NotificationChannels {
     const val ALARMS = "slot.alarms"
     const val REMINDERS = "slot.reminders"
     const val FOCUS = "slot.focus"
+    const val FOCUS_ALERTS = "slot.focus_alerts"
 
     fun create(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -230,6 +231,23 @@ object NotificationChannels {
             setShowBadge(false)
         }
         manager.createNotificationChannel(focus)
+
+        val focusAlerts = NotificationChannel(
+            FOCUS_ALERTS,
+            context.getString(R.string.channel_focus_alerts),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = context.getString(R.string.channel_focus_alerts_description)
+            enableVibration(true)
+            setSound(
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+            )
+        }
+        manager.createNotificationChannel(focusAlerts)
     }
 
     fun isGranted(context: Context): Boolean {

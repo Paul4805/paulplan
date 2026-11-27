@@ -78,7 +78,7 @@ fun TodayScreen(
     val today = LocalDate.now().dayOfWeek.value
 
     val todays = if (termActive(profile)) {
-        classes.filter { it.dayOfWeek == today }.sortedBy { it.startMinutes }
+        classes.filter { occursOn(it, LocalDate.now()) }.sortedBy { it.startMinutes }
     } else {
         emptyList()
     }
@@ -258,8 +258,8 @@ fun TodayScreen(
         AddEntryDialog(
             subjects = subjects,
             onDismiss = { classOpen = false },
-            onSave = { kind, subjectId, title, color, day, start, end, room ->
-                vm.addEntry(kind, subjectId, title, color, day, start, end, room)
+            onSave = { kind, subjectId, title, color, day, start, end, room, date ->
+                vm.addEntry(kind, subjectId, title, color, day, start, end, room, date)
             },
         )
     }
@@ -272,17 +272,22 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val profile by vm.profile.collectAsStateWithLifecycle()
     val subjectById = subjects.associateBy { it.id }
 
-    var selectedDay by rememberSaveable { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
+    var selectedOffset by rememberSaveable { mutableIntStateOf(0) }
     var classOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ClassSlot?>(null) }
     var newSubjectOpen by remember { mutableStateOf(false) }
 
+    val dateOptions = remember { (0..6).map { LocalDate.now().plusDays(it.toLong()) } }
+    val selectedDate = dateOptions[selectedOffset]
+
     fun entryLabel(slot: ClassSlot): String =
         slot.subjectId?.let { subjectById[it]?.name } ?: slot.title ?: "Entry"
 
+    fun dateChip(date: LocalDate): String = "${dayLabel(date.dayOfWeek.value)} ${date.dayOfMonth}"
+
     val termNotice = termMessage(profile)
     val slots = if (termActive(profile)) {
-        classes.filter { it.dayOfWeek == selectedDay }.sortedBy { it.startMinutes }
+        classes.filter { occursOn(it, selectedDate) }.sortedBy { it.startMinutes }
     } else {
         emptyList()
     }
@@ -310,11 +315,11 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s2),
         ) {
-            (1..7).forEach { day ->
+            dateOptions.forEachIndexed { index, date ->
                 FilterChip(
-                    selected = selectedDay == day,
-                    onClick = { selectedDay = day },
-                    label = { Text(dayLabel(day)) },
+                    selected = selectedOffset == index,
+                    onClick = { selectedOffset = index },
+                    label = { Text(dateChip(date)) },
                 )
             }
         }
@@ -322,7 +327,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         if (termNotice != null) {
             EmptyHint("Out of term", "$termNotice Adjust the dates on the web dashboard in Settings.")
         } else if (slots.isEmpty()) {
-            EmptyHint("Nothing on ${dayLabel(selectedDay)}", "Add a class, or pick another day.")
+            EmptyHint("Nothing on ${dateChip(selectedDate)}", "Add a class, or pick another day.")
         } else {
             slots.forEach { slot ->
                 val subject = slot.subjectId?.let { subjectById[it] }
@@ -364,7 +369,7 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(Tokens.Space.s2))
         Text(
-            "Tip: the week grid lives on the web. The phone keeps the same data in sync.",
+            "Showing the next 7 days. Dated events appear only on their date; weekly classes repeat.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -374,9 +379,13 @@ fun TimetableScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         AddEntryDialog(
             subjects = subjects,
             onDismiss = { classOpen = false },
-            onSave = { kind, subjectId, title, color, day, start, end, room ->
-                vm.addEntry(kind, subjectId, title, color, day, start, end, room)
-                selectedDay = day
+            onSave = { kind, subjectId, title, color, day, start, end, room, date ->
+                vm.addEntry(kind, subjectId, title, color, day, start, end, room, date)
+                val target = date ?: dateOptions
+                    .firstOrNull { it.dayOfWeek.value == day }
+                    ?.toString()
+                val index = dateOptions.indexOfFirst { it.toString() == target }
+                if (index >= 0) selectedOffset = index
             },
         )
     }

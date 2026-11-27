@@ -150,6 +150,23 @@ export default function FocusPage() {
         // Storage blocked; the in-memory state is still correct.
       }
 
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted'
+      ) {
+        try {
+          new Notification(wasFocus ? 'Focus finished' : 'Break over', {
+            body: wasFocus
+              ? `${minutes} minutes logged. Take a short break.`
+              : 'Ready for another focus session.',
+            tag: 'slot-pomodoro',
+          })
+        } catch {
+          // Mobile browsers may require the service worker; the in-app banner
+          // and the Android notification still cover it.
+        }
+      }
+
       if (!wasFocus) return
 
       try {

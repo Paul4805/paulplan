@@ -5,10 +5,12 @@ import {
   alarmMinutesForDate,
   dayOfWeek,
   daysUntil,
+  dateKeyLocal,
   durationLabel,
   formatDue,
   minutesToLabel,
   minutesToTimeInput,
+  occursOnDate,
   startOfWeek,
   termState,
   timeInputToMinutes,
@@ -117,5 +119,18 @@ describe('term windows', () => {
 
   it('treats an unset term as always active', () => {
     expect(termState({}, friday)).toBe('unset')
+  })
+})
+
+describe('one-off events', () => {
+  it('matches weekly classes by weekday', () => {
+    expect(occursOnDate({ dayOfWeek: 5 }, friday)).toBe(true)
+    expect(occursOnDate({ dayOfWeek: 4 }, friday)).toBe(false)
+  })
+
+  it('matches a dated event only on that date', () => {
+    expect(dateKeyLocal(friday)).toBe('2026-11-27')
+    expect(occursOnDate({ dayOfWeek: 5, date: '2026-11-27' }, friday)).toBe(true)
+    expect(occursOnDate({ dayOfWeek: 5, date: '2026-11-28' }, friday)).toBe(false)
   })
 })

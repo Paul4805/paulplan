@@ -164,6 +164,27 @@ describe('write validation', () => {
     )
   })
 
+  it('accepts a dated event and rejects malformed dates', async () => {
+    const event = {
+      kind: 'event',
+      title: 'One-off talk',
+      dayOfWeek: 5,
+      date: '2026-11-27',
+      startMinutes: 900,
+      endMinutes: 960,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+
+    await assertSucceeds(setDoc(doc(asAlice(), path('classes/e2')), event))
+    await assertFails(
+      setDoc(doc(asAlice(), path('classes/e3')), { ...event, date: '27-11-2026' }),
+    )
+    await assertFails(
+      setDoc(doc(asAlice(), path('classes/e4')), { ...event, date: '2026-1-1' }),
+    )
+  })
+
   it('rejects task statuses outside the enum', async () => {
     await assertFails(
       setDoc(doc(asAlice(), path('tasks/t1')), taskData({ status: 'blocked' })),

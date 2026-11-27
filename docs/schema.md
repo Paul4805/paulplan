@@ -132,6 +132,7 @@ One collection for both classes and free-standing events, because both are weekl
 | `subjectId` | string \| null | when `kind = class` |
 | `title` | string, 1–80 chars \| null | when `kind = event` |
 | `dayOfWeek` | int 1–7 (Mon = 1) | yes |
+| `date` | string `YYYY-MM-DD` \| null | no; a set date makes an event one-off |
 | `startMinutes` | int 0–1439, minutes from local midnight | yes |
 | `endMinutes` | int > `startMinutes`, ≤ 1440 | yes |
 | `room` | string | no |
@@ -142,11 +143,11 @@ One collection for both classes and free-standing events, because both are weekl
 
 ```json
 { "kind": "event", "title": "Study group", "colorOverride": "violet",
-  "dayOfWeek": 4, "startMinutes": 1080, "endMinutes": 1140,
+  "dayOfWeek": 4, "date": "2026-11-27", "startMinutes": 1080, "endMinutes": 1140,
   "room": "Library", "createdAt": "<ts>", "updatedAt": "<ts>" }
 ```
 
-Rules require **either** a non-empty `subjectId` **or** a non-empty `title`, so a malformed entry cannot exist. `startMinutes: 540` renders as 09:00 in the entry's timezone. Entries carry no date: they repeat weekly.
+Rules require **either** a non-empty `subjectId` **or** a non-empty `title`, so a malformed entry cannot exist. `startMinutes: 540` renders as 09:00 in the entry's timezone. Entries without `date` repeat weekly. An event with `date` appears only on that calendar day; `dayOfWeek` is kept in sync for older clients.
 
 ### `terms` (optional)
 

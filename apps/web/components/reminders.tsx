@@ -6,9 +6,9 @@ import { useAuth } from '@/lib/auth'
 import { useCollection, useDoc, useNow, userPath } from '@/lib/db'
 import {
   alarmMinutesForDate,
-  dayOfWeek,
   minutesNow,
   minutesToLabel,
+  occursOnDate,
 } from '@/lib/time'
 import type { Alarm, ClassSlot, Profile, Subject } from '@/lib/types'
 
@@ -68,7 +68,7 @@ export function InPageReminders() {
     const matches: Due[] = []
 
     for (const slot of classes.items) {
-      if (slot.dayOfWeek !== dayOfWeek(now)) continue
+      if (!occursOnDate(slot, now)) continue
       const subject = subjects.items.find((item) => item.id === slot.subjectId)
       const name = subject?.name ?? 'Class'
       const room = slot.room ? ` · ${slot.room}` : ''

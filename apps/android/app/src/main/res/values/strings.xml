@@ -6,4 +6,6 @@
     <string name="channel_reminders_description">Heads-up notifications before classes and tasks.</string>
     <string name="channel_focus">Focus timer</string>
     <string name="channel_focus_description">An ongoing countdown while a pomodoro is running.</string>
+    <string name="channel_focus_alerts">Focus alerts</string>
+    <string name="channel_focus_alerts_description">Notifies you when a focus session or break ends.</string>
 </resources>

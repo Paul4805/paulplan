@@ -40,6 +40,7 @@ export interface ClassSlot extends WithId {
   colorOverride?: TagColor
   notes?: string
   termId?: string
+  date?: string | null
 }
 
 export interface Task extends WithId {

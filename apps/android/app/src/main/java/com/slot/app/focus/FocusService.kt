@@ -107,12 +107,13 @@ class FocusService : Service() {
             "Ready for another focus session."
         }
 
-        val done = NotificationCompat.Builder(this, NotificationChannels.FOCUS)
+        val done = NotificationCompat.Builder(this, NotificationChannels.FOCUS_ALERTS)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
             .setContentText(text)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openIntent())
             .build()
 

@@ -21,9 +21,11 @@ import {
   DAY_LONG,
   addDays,
   clamp,
+  dateKeyLocal,
   dayOfWeek,
   isSameDay,
   minutesToLabel,
+  occursOnDate,
   startOfWeek,
   termState,
   toDate,
@@ -143,13 +145,18 @@ export default function TimetablePage() {
 
     const duration = slot.endMinutes - slot.startMinutes
     const nextStart = clamp(start + row * ROW_MINUTES, 0, 1440 - duration)
-    if (slot.dayOfWeek === day && slot.startMinutes === nextStart) return
+    const targetDate = week.find((date) => dayOfWeek(date) === day)
+    const nextDate = slot.date && targetDate ? dateKeyLocal(targetDate) : null
+    if (slot.dayOfWeek === day && slot.startMinutes === nextStart && (slot.date ?? null) === nextDate) {
+      return
+    }
 
     try {
       await patchDoc(userPath(user.uid, 'classes'), slot.id, {
         dayOfWeek: day,
         startMinutes: nextStart,
         endMinutes: nextStart + duration,
+        ...(nextDate ? { date: nextDate } : {}),
       })
       toast({
         title: 'Class moved',
@@ -170,7 +177,9 @@ export default function TimetablePage() {
       ? anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
       : weekLabel
   const selectedDate = week[selectedDay] ?? week[0] ?? new Date()
-  const selectedSlots = slotsForDay.get(selectedDay + 1) ?? []
+  const selectedSlots = (slotsForDay.get(dayOfWeek(selectedDate)) ?? []).filter((slot) =>
+    occursOnDate(slot, selectedDate),
+  )
 
   return (
     <div>
@@ -281,7 +290,9 @@ export default function TimetablePage() {
             <div className="grid grid-cols-7">
               {monthDays.map((day) => {
                 const inMonth = day.getMonth() === anchor.getMonth()
-                const entries = slotsForDay.get(dayOfWeek(day)) ?? []
+                const entries = (slotsForDay.get(dayOfWeek(day)) ?? []).filter((slot) =>
+                  occursOnDate(slot, day),
+                )
                 const due = tasksByDay.get(dayKey(day)) ?? []
                 const today = isSameDay(day, new Date())
 
@@ -419,7 +430,12 @@ export default function TimetablePage() {
                 </Fragment>
               ))}
 
-              {items.map((slot) => {
+              {items
+                .filter(
+                  (slot) =>
+                    !slot.date || week.some((date) => dateKeyLocal(date) === slot.date),
+                )
+                .map((slot) => {
                 const subject = slot.subjectId ? subjectById.get(slot.subjectId) : undefined
                 const color = slot.colorOverride ?? subject?.color ?? 'indigo'
                 const label = subject?.name ?? slot.title ?? 'Entry'

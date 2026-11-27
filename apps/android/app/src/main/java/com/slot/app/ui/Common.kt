@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.slot.app.core.design.LocalTagPalette
 import com.slot.app.core.design.Tokens
 import com.slot.app.data.Profile
+import com.slot.app.data.ClassSlot
 import com.slot.app.data.Subject
 import com.slot.app.data.TaskItem
 import java.text.SimpleDateFormat
@@ -67,6 +68,10 @@ fun termMessage(profile: Profile, today: LocalDate = LocalDate.now()): String? {
         "The term has ended, so weekly classes are hidden."
     }
 }
+
+/** Weekly classes match by weekday; dated events match exactly that date. */
+fun occursOn(slot: ClassSlot, date: LocalDate): Boolean =
+    slot.date?.let { it == date.toString() } ?: (slot.dayOfWeek == date.dayOfWeek.value)
 
 @Composable
 fun tagColor(name: String): Color {

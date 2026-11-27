@@ -78,6 +78,23 @@ export function isSameDay(a: Date, b: Date): boolean {
   )
 }
 
+/** Local calendar date as YYYY-MM-DD, used by one-off events. */
+export function dateKeyLocal(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
+/**
+ * Weekly classes match by weekday. Events with a `date` match only that day;
+ * older events without a date keep behaving like weekly entries.
+ */
+export function occursOnDate(
+  slot: { dayOfWeek: number; date?: string | null },
+  date: Date,
+): boolean {
+  if (slot.date) return slot.date === dateKeyLocal(date)
+  return slot.dayOfWeek === dayOfWeek(date)
+}
+
 export function formatClock(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
 }

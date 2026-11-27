@@ -54,6 +54,7 @@ object AlarmMath {
 
             for (slot in classes) {
                 if (slot.dayOfWeek != weekday) continue
+                if (!slot.date.isNullOrBlank() && slot.date != date.toString()) continue
                 val start = date.atStartOfDay(systemZone).plusMinutes(slot.startMinutes.toLong()).toInstant()
                 val notifyAt = start.minusSeconds(lead * 60L)
                 if (!notifyAt.isAfter(nowInstant)) continue

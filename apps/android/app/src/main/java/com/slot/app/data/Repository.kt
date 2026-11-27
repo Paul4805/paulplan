@@ -181,6 +181,7 @@ class SlotRepository(
         startMinutes: Int,
         endMinutes: Int,
         room: String,
+        date: String? = null,
     ) {
         val payload = mutableMapOf<String, Any?>(
             "kind" to kind,
@@ -190,6 +191,7 @@ class SlotRepository(
             "startMinutes" to startMinutes.toLong(),
             "endMinutes" to endMinutes.toLong(),
             "room" to room,
+            "date" to date,
             "createdAt" to FieldValue.serverTimestamp(),
             "updatedAt" to FieldValue.serverTimestamp(),
         )

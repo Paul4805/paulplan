@@ -150,8 +150,8 @@ fun SubjectsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                 subjects = listOf(chosen),
                 defaultKind = "class",
                 onDismiss = { classOpen = false },
-                onSave = { kind, subjectId, title, color, day, start, end, room ->
-                    vm.addEntry(kind, subjectId, title, color, day, start, end, room)
+                onSave = { kind, subjectId, title, color, day, start, end, room, date ->
+                    vm.addEntry(kind, subjectId, title, color, day, start, end, room, date)
                 },
             )
         }

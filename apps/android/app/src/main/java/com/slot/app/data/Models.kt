@@ -24,6 +24,7 @@ data class ClassSlot(
     val startMinutes: Int,
     val endMinutes: Int,
     val room: String? = null,
+    val date: String? = null,
 )
 
 data class TaskItem(
@@ -125,6 +126,7 @@ fun DocumentSnapshot.toClassSlot(): ClassSlot = ClassSlot(
     startMinutes = (getLong("startMinutes") ?: 540L).toInt(),
     endMinutes = (getLong("endMinutes") ?: 630L).toInt(),
     room = getString("room"),
+    date = getString("date"),
 )
 
 fun DocumentSnapshot.toTask(): TaskItem = TaskItem(

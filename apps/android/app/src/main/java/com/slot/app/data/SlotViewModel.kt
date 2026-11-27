@@ -119,7 +119,8 @@ class SlotViewModel(application: Application) : AndroidViewModel(application) {
         startMinutes: Int,
         endMinutes: Int,
         room: String,
-    ) = write { it.addEntry(kind, subjectId, title, color, dayOfWeek, startMinutes, endMinutes, room) }
+        date: String? = null,
+    ) = write { it.addEntry(kind, subjectId, title, color, dayOfWeek, startMinutes, endMinutes, room, date) }
 
     fun deleteClass(id: String) = write { it.deleteClass(id) }
 

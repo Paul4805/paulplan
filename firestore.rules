@@ -74,6 +74,13 @@ service cloud.firestore {
           && (
                !('colorOverride' in request.resource.data)
                || request.resource.data.colorOverride in ['indigo', 'sky', 'violet', 'amber', 'rose', 'emerald']
+             )
+          && (
+               !('date' in request.resource.data)
+               || request.resource.data.date == null
+               || (request.resource.data.date is string
+                   && request.resource.data.date.size() == 10
+                   && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
              );
       }
 

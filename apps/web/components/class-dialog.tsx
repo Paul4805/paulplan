@@ -5,7 +5,13 @@ import { useEffect, useState } from 'react'
 import { Button, Dialog, Field, Input, Segmented, Select, Textarea } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { createDoc, patchDoc, removeDoc, userPath } from '@/lib/db'
-import { DAY_LONG, minutesToTimeInput, timeInputToMinutes } from '@/lib/time'
+import {
+  DAY_LONG,
+  dayOfWeek,
+  minutesToTimeInput,
+  pad2,
+  timeInputToMinutes,
+} from '@/lib/time'
 import { useToast } from '@/lib/toast'
 import { TAG_COLORS, type ClassSlot, type Subject, type TagColor } from '@/lib/types'
 
@@ -17,11 +23,17 @@ interface FormState {
   title: string
   color: TagColor
   dayOfWeek: string
+  date: string
   start: string
   end: string
   room: string
   teacher: string
   notes: string
+}
+
+function todayInput(): string {
+  const today = new Date()
+  return `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`
 }
 
 function emptyForm(subjects: Subject[], kind: Kind, day: number): FormState {
@@ -31,6 +43,7 @@ function emptyForm(subjects: Subject[], kind: Kind, day: number): FormState {
     title: '',
     color: 'indigo',
     dayOfWeek: String(day),
+    date: kind === 'event' ? todayInput() : '',
     start: '09:00',
     end: '10:00',
     room: '',
@@ -71,6 +84,7 @@ export function ClassDialog({
         title: initial.title ?? '',
         color: initial.colorOverride ?? subject?.color ?? 'indigo',
         dayOfWeek: String(initial.dayOfWeek),
+        date: initial.date ?? '',
         start: minutesToTimeInput(initial.startMinutes),
         end: minutesToTimeInput(initial.endMinutes),
         room: initial.room ?? '',
@@ -105,11 +119,18 @@ export function ClassDialog({
       return
     }
 
+    const eventDate = !isClass && form.date ? new Date(`${form.date}T00:00:00`) : null
+    if (eventDate && Number.isNaN(eventDate.getTime())) {
+      toast({ title: 'Use a valid date for the event', tone: 'danger' })
+      return
+    }
+
     setBusy(true)
     try {
       const payload: Record<string, unknown> = {
         kind: form.kind,
-        dayOfWeek: Number(form.dayOfWeek),
+        dayOfWeek: eventDate ? dayOfWeek(eventDate) : Number(form.dayOfWeek),
+        date: !isClass ? form.date || null : null,
         startMinutes,
         endMinutes,
         room: form.room.trim(),
@@ -177,7 +198,13 @@ export function ClassDialog({
         <Segmented<Kind>
           label="Entry type"
           value={form.kind}
-          onChange={(kind) => setForm({ ...form, kind })}
+          onChange={(kind) =>
+            setForm({
+              ...form,
+              kind,
+              date: kind === 'event' && !form.date ? todayInput() : form.date,
+            })
+          }
           options={[
             { value: 'class', label: 'Class' },
             { value: 'event', label: 'Event' },
@@ -235,19 +262,34 @@ export function ClassDialog({
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Day" htmlFor="class-day">
-            <Select
-              id="class-day"
-              value={form.dayOfWeek}
-              onChange={(event) => setForm({ ...form, dayOfWeek: event.target.value })}
+          {isClass ? (
+            <Field label="Day" htmlFor="class-day">
+              <Select
+                id="class-day"
+                value={form.dayOfWeek}
+                onChange={(event) => setForm({ ...form, dayOfWeek: event.target.value })}
+              >
+                {DAY_LONG.map((label, index) => (
+                  <option key={label} value={index + 1}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <Field
+              label="Date"
+              htmlFor="event-date"
+              hint="Defaults to today. Clear it to repeat weekly instead."
             >
-              {DAY_LONG.map((label, index) => (
-                <option key={label} value={index + 1}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              <Input
+                id="event-date"
+                type="date"
+                value={form.date}
+                onChange={(event) => setForm({ ...form, date: event.target.value })}
+              />
+            </Field>
+          )}
 
           <Field label="Location" htmlFor="class-room">
             <Input
@@ -258,6 +300,22 @@ export function ClassDialog({
             />
           </Field>
         </div>
+
+        {!isClass && !form.date ? (
+          <Field label="Repeats on" htmlFor="event-day">
+            <Select
+              id="event-day"
+              value={form.dayOfWeek}
+              onChange={(event) => setForm({ ...form, dayOfWeek: event.target.value })}
+            >
+              {DAY_LONG.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start" htmlFor="class-start">

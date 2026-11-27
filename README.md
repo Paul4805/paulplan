@@ -10,9 +10,9 @@ Built by [J Paul Masillamni](https://github.com/Paul4805). Named for him, design
 
 | | |
 |---|---|
-| **Timetable** | Weekly classes and free-standing events (talks, meetings, church, football). Month grid, week hour-grid, day list. Each entry carries a colour. |
+| **Timetable** | Weekly classes and free-standing events (talks, meetings, church, football). Events default to today's date and can be one-off or weekly. Month grid, week hour-grid, day list. Each entry carries a colour. |
 | **Tasks** | Deadlines, subject links, priorities, todo/doing/done; list and drag-and-drop kanban on the web. |
-| **Study** | Pomodoro timer that survives a closed tab, plus a foreground service on Android that keeps counting and logs the session. Session logging, per-subject progress and weekly targets. |
+| **Study** | Pomodoro timer that survives a closed tab, plus a foreground service on Android that keeps counting, posts a notification when focus or a break ends, and logs the session. Session logging, per-subject progress and weekly targets. |
 | **Training** | Runs, football, gym. Automatic Garmin sync from the Android app, including sleep, steps and HRV, plus per-session detail (pace, heart rate, elevation, calories). Garmin export and Strava CSV remain fallbacks. |
 | **Stats** | Week / month / term ranges, 12-week heatmaps, streaks, academic and training totals, study-vs-training balance, recovery cards, and per-subject/type breakdowns. |
 | **Alarms** | Exact local alarms on Android (`setAlarmClock`), full-screen over the lock screen, snooze/dismiss synced back to Firestore. Task due-date reminders, a one-tap test alarm, and a first-run permission check. Web shows in-page and desktop notifications while a tab is open. |
@@ -161,10 +161,10 @@ Fork it, point it at your own Firebase project, and change the name. [`docs/fork
 
 | Check | Result |
 | --- | --- |
-| Web unit tests (time, alarms, Strava CSV, Garmin JSON, streaks) | 26 passed |
+| Web unit tests (time, alarms, Strava CSV, Garmin JSON, streaks) | 28 passed |
 | Web typecheck + lint | clean |
 | Static export | 11 routes |
-| Firestore rules (emulator) | 25 passed |
+| Firestore rules (emulator) | 26 passed |
 | Android build + lint | debug APK built; 0 lint errors |
 | Alarms on a Galaxy S23 | fired full-screen, snoozed, survived reboot without launching the app |
 | Garmin sync | 33 activities imported automatically |

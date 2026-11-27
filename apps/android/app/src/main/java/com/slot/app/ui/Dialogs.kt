@@ -218,13 +218,15 @@ fun AddEntryDialog(
         startMinutes: Int,
         endMinutes: Int,
         room: String,
+        date: String?,
     ) -> Unit,
 ) {
     var kind by remember { mutableStateOf(defaultKind) }
     var subjectId by remember { mutableStateOf(subjects.firstOrNull()?.id ?: "") }
     var title by remember { mutableStateOf("") }
     var color by remember { mutableStateOf("indigo") }
-    var day by remember { mutableStateOf(1) }
+    var day by remember { mutableStateOf(LocalDate.now().dayOfWeek.value) }
+    var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var startHour by remember { mutableStateOf("09") }
     var startMinute by remember { mutableStateOf("00") }
     var endHour by remember { mutableStateOf("10") }
@@ -274,12 +276,27 @@ fun AddEntryDialog(
                     )
                 }
 
-                FieldLabel("Day")
-                ChipRow(
-                    values = (1..7).map { it.toString() to dayLabel(it) },
-                    selected = day.toString(),
-                    onSelect = { day = it.toInt() },
-                )
+                FieldLabel(if (isClass) "Day" else "Date")
+                if (isClass) {
+                    ChipRow(
+                        values = (1..7).map { it.toString() to dayLabel(it) },
+                        selected = day.toString(),
+                        onSelect = { day = it.toInt() },
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = date,
+                        onValueChange = { date = it },
+                        label = { Text("Date (YYYY-MM-DD)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "Defaults to today. This event appears only on that date.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 FieldLabel("Start")
                 TimeFields(startHour, startMinute, { startHour = it }, { startMinute = it })
@@ -304,10 +321,16 @@ fun AddEntryDialog(
                 onClick = {
                     val start = parseMinutes(startHour, startMinute)
                     val end = parseMinutes(endHour, endMinute)
+                    val eventDate = if (!isClass) {
+                        runCatching { LocalDate.parse(date.trim()) }.getOrNull()
+                    } else {
+                        null
+                    }
                     when {
                         isClass && subjects.isEmpty() -> error = "Create a subject first, or switch to Event."
                         isClass && subjectId.isBlank() -> error = "Pick a subject."
                         !isClass && title.isBlank() -> error = "Give the event a title."
+                        !isClass && eventDate == null -> error = "Use YYYY-MM-DD for the date."
                         start == null || end == null -> error = "Enter valid times."
                         end <= start -> error = "End must be after start."
                         else -> {
@@ -316,10 +339,11 @@ fun AddEntryDialog(
                                 if (isClass) subjectId else null,
                                 if (isClass) null else title.trim(),
                                 if (isClass) null else color,
-                                day,
+                                eventDate?.dayOfWeek?.value ?: day,
                                 start,
                                 end,
                                 room.trim(),
+                                eventDate?.toString(),
                             )
                             onDismiss()
                         }
