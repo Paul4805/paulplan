@@ -67,10 +67,10 @@ git config --global core.longpaths true
 
 ## 2. Firebase
 
-1. Create a project named **slot-app** on the **Spark** plan. No billing account.
+1. The project already exists as **planner-9b0a2** (`.firebaserc` points at it). No billing account.
 2. **Authentication → Sign-in method**: enable **Google** and **Email/Password**.
-3. **Project settings → Your apps → Web**: register a web app and copy the config into `apps/web/.env.local`. The same values go into `apps/android/local.properties` (see step 3.5).
-4. **Project settings → Your apps → Android**: register `com.slot.app`. The debug SHA-1 comes from `./gradlew signingReport` after step 3.5. (Required for Google sign-in on Android, not for email/password.)
+3. **Project settings → Your apps → Web**: register an app, copy the config block into `apps/web/.env.local` (see `apps/web/.env.example`). The same values go into `apps/android/local.properties` (see step 3.5).
+4. **Project settings → Your apps → Android**: register `com.slot.app`. Use the debug SHA-1 from `.\gradlew.bat signingReport` (also required for Google sign-in on Android).
 5. **Hosting**: create the default site. `firebase.json` already points at `apps/web/out`.
 6. **Firestore**: create the database in production mode once you are ready to deploy rules. The emulator does not need it.
 
@@ -114,7 +114,7 @@ Before the first Android build, create `apps/android/local.properties` with the 
 sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
 firebase.apiKey=...
 firebase.applicationId=1:...:android:...
-firebase.projectId=slot-app
+firebase.projectId=planner-9b0a2
 firebase.storageBucket=slot-app.firebasestorage.app
 firebase.senderId=...
 google.webClientId=...apps.googleusercontent.com
