@@ -48,10 +48,10 @@ export default function LoginPage() {
     <main className="flex min-h-dvh items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-chip bg-accent-solid text-[11px] font-semibold text-accent-fg">
-            SL
+          <span className="flex size-8 items-center justify-center rounded-chip bg-accent-solid text-xs font-semibold text-accent-fg">
+            P
           </span>
-          <span className="text-lg font-semibold tracking-tight text-ink">Slot</span>
+          <span className="text-lg font-semibold tracking-tight text-ink">PaulPlan</span>
         </div>
 
         <div className="rounded-card border border-border bg-surface p-6">

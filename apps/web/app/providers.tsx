@@ -9,14 +9,14 @@ import { ToastProvider } from '@/lib/toast'
 function BootScreen() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas">
-      <span className="flex size-9 items-center justify-center rounded-card bg-accent-solid text-xs font-semibold text-accent-fg">
-        SL
+      <span className="flex size-9 items-center justify-center rounded-card bg-accent-solid text-sm font-semibold text-accent-fg">
+        P
       </span>
       <div className="space-y-2">
         <div className="h-2 w-32 animate-pulse rounded-pill bg-border" />
         <div className="h-2 w-24 animate-pulse rounded-pill bg-border" />
       </div>
-      <span className="sr-only">Loading Slot</span>
+      <span className="sr-only">Loading PaulPlan</span>
     </div>
   )
 }

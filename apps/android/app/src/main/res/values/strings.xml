@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Slot</string>
+    <string name="app_name">PaulPlan</string>
     <string name="channel_alarms">Alarms</string>
     <string name="channel_alarms_description">Exact-time alarms that ring over the lock screen.</string>
     <string name="channel_reminders">Reminders</string>

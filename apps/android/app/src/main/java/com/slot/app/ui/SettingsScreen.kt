@@ -249,7 +249,7 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     },
                 )
                 Text(
-                    "Some phones (Xiaomi, Oppo, Samsung) also need Slot allowed in their own battery settings. Without these, an alarm can be delayed or suppressed.",
+                    "Some phones (Xiaomi, Oppo, Samsung) also need PaulPlan allowed in their own battery settings. Without these, an alarm can be delayed or suppressed.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -306,7 +306,7 @@ fun SettingsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         Text(
-            "Slot ${BuildConfig.VERSION_NAME} · Firestore Spark · alarms are local, sync is peer-to-peer through Firestore",
+            "PaulPlan ${BuildConfig.VERSION_NAME} · Firestore Spark · alarms are local, sync is peer-to-peer through Firestore",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

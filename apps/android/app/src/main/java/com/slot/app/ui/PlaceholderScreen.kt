@@ -46,7 +46,7 @@ fun PlaceholderScreen(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(Tokens.Space.s10))
 
             Text(
-                text = "SLOT · PHASE 0",
+                text = "PAULPLAN · PHASE 0",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 2.sp,

@@ -229,7 +229,7 @@ export default function TrainingPage() {
     const duplicates = imported.length - fresh.length
 
     if (fresh.length === 0) {
-      toast({ title: 'Nothing new to import', description: `${duplicates} already in Slot.` })
+      toast({ title: 'Nothing new to import', description: `${duplicates} already in PaulPlan.` })
       return
     }
 
@@ -624,7 +624,7 @@ export default function TrainingPage() {
                 {imported.length} sessions ready, {importSkipped} rows skipped.
               </p>
               <p className="mt-1 text-xs text-ink-muted">
-                Duplicates already in Slot are skipped on import.
+                Duplicates already in PaulPlan are skipped on import.
               </p>
             </div>
           ) : null}

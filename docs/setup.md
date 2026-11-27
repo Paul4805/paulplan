@@ -76,7 +76,7 @@ git config --global core.longpaths true
 
 ```powershell
 firebase login
-firebase use --add      # select slot-app, alias "default"
+firebase use --add      # select planner-9b0a2, alias "default"
 ```
 
 ---
@@ -115,7 +115,7 @@ sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
 firebase.apiKey=...
 firebase.applicationId=1:...:android:...
 firebase.projectId=planner-9b0a2
-firebase.storageBucket=slot-app.firebasestorage.app
+firebase.storageBucket=planner-9b0a2.firebasestorage.app
 firebase.senderId=...
 google.webClientId=...apps.googleusercontent.com
 ```

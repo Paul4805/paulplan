@@ -1,7 +1,7 @@
 {
-  "name": "Slot",
-  "short_name": "Slot",
-  "description": "A minimal college schedule manager: timetable, tasks, and study progress.",
+  "name": "PaulPlan",
+  "short_name": "PaulPlan",
+  "description": "Paul’s minimal college schedule manager: timetable, tasks, training, and study progress.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

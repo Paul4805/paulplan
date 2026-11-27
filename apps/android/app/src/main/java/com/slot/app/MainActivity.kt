@@ -206,9 +206,9 @@ private fun AuthScreen(vm: SlotViewModel) {
                         .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("SL", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
+                    Text("P", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
                 }
-                Text("Slot", style = MaterialTheme.typography.headlineSmall)
+                Text("PaulPlan", style = MaterialTheme.typography.headlineSmall)
             }
 
             Spacer(Modifier.height(Tokens.Space.s6))

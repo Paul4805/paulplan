@@ -1,4 +1,4 @@
-# Slot
+# PaulPlan
 
 A minimal college schedule manager. Weekly timetable, tasks, study progress, and reminders — on the web and on Android, sharing one account and one dataset in real time.
 
@@ -141,7 +141,7 @@ Node 20+ (LTS), pnpm 9, JDK 17, Android Studio with SDK 35 (min SDK 26), Firebas
 ```powershell
 npm install -g pnpm@9 firebase-tools
 firebase login
-firebase use --add        # select the slot Firebase project
+firebase use --add        # select the planner-9b0a2 Firebase project
 ```
 
 Configuration lives in `apps/web/.env.local` (never committed):

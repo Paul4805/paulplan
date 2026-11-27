@@ -13,13 +13,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Slot',
-    template: '%s · Slot',
+    default: 'PaulPlan',
+    template: '%s · PaulPlan',
   },
-  description: 'A minimal college schedule manager: timetable, tasks, and study progress.',
-  applicationName: 'Slot',
+  description: 'Paul’s minimal college schedule manager: timetable, tasks, training, and study progress.',
+  applicationName: 'PaulPlan',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'Slot', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'PaulPlan', statusBarStyle: 'default' },
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
 }
 

@@ -33,8 +33,8 @@ function currentPath(pathname: string): string {
 
 function Mark() {
   return (
-    <span className="flex size-7 items-center justify-center rounded-chip bg-accent-solid text-[11px] font-semibold tracking-tight text-accent-fg">
-      SL
+    <span className="flex size-7 items-center justify-center rounded-chip bg-accent-solid text-xs font-semibold tracking-tight text-accent-fg">
+      P
     </span>
   )
 }
@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { user } = useAuth()
   const path = currentPath(pathname)
-  const title = path === '/subjects' ? 'Subjects' : (NAV.find((item) => item.href === path)?.label ?? 'Slot')
+  const title = path === '/subjects' ? 'Subjects' : (NAV.find((item) => item.href === path)?.label ?? 'PaulPlan')
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-canvas px-3 py-5 lg:flex">
         <Link href="/" className="mb-8 flex items-center gap-2 px-2">
           <Mark />
-          <span className="text-base font-semibold tracking-tight text-ink">Slot</span>
+          <span className="text-base font-semibold tracking-tight text-ink">PaulPlan</span>
         </Link>
 
         <nav aria-label="Primary" className="flex flex-col gap-0.5">

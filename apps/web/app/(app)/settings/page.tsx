@@ -173,7 +173,7 @@ export default function SettingsPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `slot-export-${new Date().toISOString().slice(0, 10)}.json`
+      link.download = `paulplan-export-${new Date().toISOString().slice(0, 10)}.json`
       link.click()
       URL.revokeObjectURL(url)
       toast({ title: 'Export downloaded', tone: 'success' })
@@ -452,7 +452,7 @@ export default function SettingsPage() {
       </section>
 
       <p className="text-xs leading-relaxed text-ink-muted">
-        Slot v0.1 · Firestore Spark plan · no server, no analytics. Deleting your account is done
+        PaulPlan v0.1 · Firestore Spark plan · no server, no analytics. Deleting your account is done
         from the Firebase console for now.
       </p>
     </div>
