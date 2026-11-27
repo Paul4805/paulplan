@@ -25,9 +25,11 @@ import {
   dayOfWeek,
   isSameDay,
   minutesToLabel,
+  startOfWeek,
+  toDate,
   weekDates,
 } from '@/lib/time'
-import type { ClassSlot, Subject } from '@/lib/types'
+import type { ClassSlot, Subject, Task } from '@/lib/types'
 
 const ROW_MINUTES = 30
 
@@ -35,8 +37,9 @@ export default function TimetablePage() {
   const { user } = useAuth()
   const classes = useCollection<ClassSlot>(user ? userPath(user.uid, 'classes') : null)
   const subjects = useCollection<Subject>(user ? userPath(user.uid, 'subjects') : null)
+  const tasks = useCollection<Task>(user ? userPath(user.uid, 'tasks') : null)
 
-  const [view, setView] = useState<'week' | 'day'>('week')
+  const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDay, setSelectedDay] = useState(() => dayOfWeek(new Date()) - 1)
   const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null; kind: 'class' | 'event' }>({
@@ -46,7 +49,8 @@ export default function TimetablePage() {
   })
 
   useEffect(() => {
-    if (window.matchMedia('(max-width: 639px)').matches) setView('day')
+    const small = window.matchMedia('(max-width: 639px)').matches
+    setView(small ? 'day' : 'month')
   }, [])
 
   const week = useMemo(() => weekDates(anchor, 1), [anchor])
@@ -79,9 +83,46 @@ export default function TimetablePage() {
     return map
   }, [classes.items])
 
+  const monthStart = useMemo(
+    () => new Date(anchor.getFullYear(), anchor.getMonth(), 1),
+    [anchor],
+  )
+
+  const monthDays = useMemo(() => {
+    const gridStart = startOfWeek(monthStart, 1)
+    return Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
+  }, [monthStart])
+
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    for (const task of tasks.items) {
+      const due = toDate(task.dueAt)
+      if (!due) continue
+      const key = `${due.getFullYear()}-${due.getMonth()}-${due.getDate()}`
+      const list = map.get(key) ?? []
+      list.push(task)
+      map.set(key, list)
+    }
+    return map
+  }, [tasks.items])
+
+  const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+
+  function shift(direction: number) {
+    if (view === 'month') {
+      setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1))
+    } else {
+      setAnchor(addDays(anchor, 7 * direction))
+    }
+  }
+
   if (!user) return null
 
   const weekLabel = `${week[0]?.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${week[6]?.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+  const periodLabel =
+    view === 'month'
+      ? anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      : weekLabel
   const selectedDate = week[selectedDay] ?? week[0] ?? new Date()
   const selectedSlots = slotsForDay.get(selectedDay + 1) ?? []
 
@@ -117,27 +158,27 @@ export default function TimetablePage() {
           <Button
             variant="secondary"
             size="sm"
-            aria-label="Previous week"
-            onClick={() => setAnchor(addDays(anchor, -7))}
+            aria-label="Previous period"
+            onClick={() => shift(-1)}
           >
             <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M15 6l-6 6 6 6" strokeLinecap="round" />
             </svg>
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setAnchor(new Date())}>
-            This week
+            {view === 'month' ? 'This month' : 'This week'}
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            aria-label="Next week"
-            onClick={() => setAnchor(addDays(anchor, 7))}
+            aria-label="Next period"
+            onClick={() => shift(1)}
           >
             <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M9 6l6 6-6 6" strokeLinecap="round" />
             </svg>
           </Button>
-          <span className="text-sm text-ink-muted">{weekLabel}</span>
+          <span className="text-sm text-ink-muted">{periodLabel}</span>
         </div>
 
         <Segmented
@@ -145,6 +186,7 @@ export default function TimetablePage() {
           value={view}
           onChange={setView}
           options={[
+            { value: 'month', label: 'Month' },
             { value: 'week', label: 'Week' },
             { value: 'day', label: 'Day' },
           ]}
@@ -172,6 +214,99 @@ export default function TimetablePage() {
             </div>
           }
         />
+      ) : view === 'month' ? (
+        <div className="overflow-x-auto rounded-card border border-border bg-surface">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-7 border-b border-border">
+              {DAY_LABELS.map((label) => (
+                <div
+                  key={label}
+                  className="px-2 py-2 text-center text-[11px] font-medium uppercase tracking-wide text-ink-muted"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {monthDays.map((day) => {
+                const inMonth = day.getMonth() === anchor.getMonth()
+                const entries = slotsForDay.get(dayOfWeek(day)) ?? []
+                const due = tasksByDay.get(dayKey(day)) ?? []
+                const today = isSameDay(day, new Date())
+
+                return (
+                  <button
+                    key={day.toISOString()}
+                    type="button"
+                    onClick={() => {
+                      setAnchor(day)
+                      setSelectedDay(dayOfWeek(day) - 1)
+                      setView('day')
+                    }}
+                    className={cn(
+                      'min-h-24 border-b border-r border-border p-1.5 text-left align-top transition-colors hover:bg-surface-elevated',
+                      !inMonth && 'bg-canvas',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={cn(
+                          'inline-flex size-5 items-center justify-center rounded-pill text-xs tabular-nums',
+                          today
+                            ? 'bg-accent-solid text-accent-fg'
+                            : inMonth
+                              ? 'text-ink'
+                              : 'text-ink-muted',
+                        )}
+                      >
+                        {day.getDate()}
+                      </span>
+                      {due.length > 0 ? (
+                        <span aria-hidden className="size-1.5 rounded-pill bg-warning" />
+                      ) : null}
+                    </div>
+
+                    <div className="mt-1 space-y-0.5">
+                      {entries.slice(0, 2).map((slot) => {
+                        const subject = slot.subjectId
+                          ? subjectById.get(slot.subjectId)
+                          : undefined
+                        const color = slot.colorOverride ?? subject?.color ?? 'indigo'
+                        return (
+                          <span
+                            key={slot.id}
+                            className="block truncate rounded-[4px] border px-1 py-0.5 text-[10px] leading-tight"
+                            style={tagTint(color)}
+                          >
+                            <span className="tabular-nums text-ink-muted">
+                              {minutesToLabel(slot.startMinutes)}
+                            </span>{' '}
+                            <span className="text-ink">
+                              {subject?.name ?? slot.title ?? 'Entry'}
+                            </span>
+                          </span>
+                        )
+                      })}
+                      {entries.length > 2 ? (
+                        <span className="block px-1 text-[10px] text-ink-muted">
+                          +{entries.length - 2} more
+                        </span>
+                      ) : null}
+                      {due.slice(0, 2).map((task) => (
+                        <span
+                          key={task.id}
+                          className="block truncate px-1 text-[10px] text-warning"
+                        >
+                          • {task.title}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       ) : view === 'week' ? (
         <div className="overflow-x-auto rounded-card border border-border bg-surface">
           <div className="min-w-[760px] p-2">
