@@ -7,7 +7,6 @@ import {
   Badge,
   Button,
   Card,
-  EmptyState,
   ErrorNote,
   PageHeader,
   Segmented,
@@ -207,27 +206,14 @@ export default function TimetablePage() {
         />
       </div>
 
+      {!classes.loading && classes.items.length === 0 ? (
+        <p className="mb-3 rounded-card border border-dashed border-border px-4 py-3 text-sm text-ink-muted">
+          Nothing scheduled yet. The grid stays here — add a class or an event and it fills in.
+        </p>
+      ) : null}
+
       {classes.loading ? (
         <Skeleton className="h-96 w-full" />
-      ) : classes.items.length === 0 ? (
-        <EmptyState
-          title="Your week is empty"
-          description="Add subjects first, then drop classes into the week. Everything repeats automatically."
-          action={
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setDialog({ open: true, slot: null, kind: 'event' })}
-              >
-                Add event
-              </Button>
-              <Button size="sm" onClick={() => setDialog({ open: true, slot: null, kind: 'class' })}>
-                Add class
-              </Button>
-            </div>
-          }
-        />
       ) : view === 'month' ? (
         <div className="overflow-x-auto rounded-card border border-border bg-surface">
           <div className="min-w-[760px]">
