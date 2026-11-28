@@ -85,7 +85,7 @@ Garmin's **Personal API** issues a key that is exchanged for a 24-hour token. Th
 
 1. Garmin Connect (web) → Settings → **Personal API** → create a key (30/90/180/365 days).
 2. In PaulPlan for Android: **Settings → Garmin** → paste the key → **Save & sync**.
-3. That's it. The phone syncs on app open (at most every 6h), every 12h in the background, and when you tap **Sync now via phone** on the web.
+3. That's it. The phone syncs on app open (at most hourly), every hour in the background, and when you tap **Sync now via phone** on the web.
 4. Each sync also pulls the last 14 days of sleep, steps and HRV into `dailyHealth`, and backfills heart rate, elevation and calories onto activities imported before those fields existed.
 
 No key? **Training → Import** still accepts a Garmin data-export `summarizedActivities.json`, or a Strava `activities.csv`.

@@ -578,26 +578,31 @@ export default function StatsPage() {
               <Card className="p-3">
                 <p className="text-[11px] uppercase tracking-wide text-ink-muted">Sleep</p>
                 <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
-                  {sleepLabel(avgSleep)}
+                  {latestHealth?.sleepMinutes != null ? sleepLabel(latestHealth.sleepMinutes) : '—'}
                 </p>
                 <p className="mt-1 text-[11px] text-ink-muted">
-                  {latestHealth?.sleepScore ? `score ${latestHealth.sleepScore}` : 'nightly'}
+                  7d avg {sleepLabel(avgSleep)}
+                  {latestHealth?.sleepScore ? ` · score ${latestHealth.sleepScore}` : ''}
                 </p>
               </Card>
               <Card className="p-3">
                 <p className="text-[11px] uppercase tracking-wide text-ink-muted">Steps</p>
                 <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
-                  {avgSteps === null ? '—' : Math.round(avgSteps).toLocaleString()}
+                  {latestHealth?.steps == null ? '—' : latestHealth.steps.toLocaleString()}
                 </p>
-                <p className="mt-1 text-[11px] text-ink-muted">daily avg</p>
+                <p className="mt-1 text-[11px] text-ink-muted">
+                  {avgSteps === null ? 'no data' : `7d avg ${Math.round(avgSteps).toLocaleString()}`}
+                </p>
               </Card>
               <Card className="p-3">
                 <p className="text-[11px] uppercase tracking-wide text-ink-muted">HRV</p>
                 <p className="mt-1.5 text-lg font-semibold tabular-nums text-ink">
-                  {avgHrv === null ? '—' : Math.round(avgHrv)}
+                  {latestHealth?.hrv == null ? '—' : Math.round(latestHealth.hrv)}
                   <span className="ml-1 text-xs font-medium text-ink-muted">ms</span>
                 </p>
-                <p className="mt-1 text-[11px] text-ink-muted">last night</p>
+                <p className="mt-1 text-[11px] text-ink-muted">
+                  {avgHrv === null ? 'no data' : `7d avg ${Math.round(avgHrv)} ms`}
+                </p>
               </Card>
             </div>
           )}

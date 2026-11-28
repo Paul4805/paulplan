@@ -460,9 +460,9 @@ object GarminSyncWatcher {
                     }
                 }
 
-            // Opportunistic sync when the app opens, at most every 6 hours.
+            // Opportunistic sync when the app opens, at most every hour.
             if (GarminStore.apiKey(app) != null &&
-                System.currentTimeMillis() - GarminStore.lastSync(app) > 6 * 60 * 60 * 1000L
+                System.currentTimeMillis() - GarminStore.lastSync(app) > 60 * 60 * 1000L
             ) {
                 newScope.launch {
                     runCatching { GarminSync.sync(app, user.uid, db) }
@@ -493,13 +493,13 @@ class GarminSyncWorker(
         const val NAME = "slot-garmin-sync"
 
         fun enqueue(context: Context) {
-            val request = PeriodicWorkRequestBuilder<GarminSyncWorker>(12, TimeUnit.HOURS)
-                .setInitialDelay(30, TimeUnit.MINUTES)
+            val request = PeriodicWorkRequestBuilder<GarminSyncWorker>(1, TimeUnit.HOURS)
+                .setInitialDelay(10, TimeUnit.MINUTES)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }

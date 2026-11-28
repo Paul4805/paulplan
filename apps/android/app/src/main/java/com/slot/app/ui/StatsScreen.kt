@@ -146,7 +146,8 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
     val avgSleep = recentHealth.mapNotNull { it.sleepMinutes }.takeIf { it.isNotEmpty() }?.average()
     val avgSteps = recentHealth.mapNotNull { it.steps }.takeIf { it.isNotEmpty() }?.average()
     val avgHrv = recentHealth.mapNotNull { it.hrv }.takeIf { it.isNotEmpty() }?.average()
-    val latestScore = recentHealth.firstOrNull()?.sleepScore
+    val latestHealth = recentHealth.firstOrNull()
+    val latestScore = latestHealth?.sleepScore
 
     fun rowsFor(pairs: List<Pair<String, Int>>, dots: List<String?>): List<BreakdownRow> {
         if (pairs.isEmpty()) return emptyList()
@@ -304,20 +305,22 @@ fun StatsScreen(vm: SlotViewModel, modifier: Modifier = Modifier) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Tokens.Space.s3)) {
                         StatCard(
                             label = "Sleep",
-                            value = avgSleep?.let { sleepLabel(it) } ?: "—",
-                            hint = latestScore?.let { "score $it" } ?: "7-day average",
+                            value = latestHealth?.sleepMinutes?.let { sleepLabel(it.toDouble()) } ?: "—",
+                            hint = avgSleep?.let {
+                                "7d avg ${sleepLabel(it)}" + (latestScore?.let { score -> " · score $score" } ?: "")
+                            } ?: "no data",
                             modifier = Modifier.weight(1f),
                         )
                         StatCard(
                             label = "Steps",
-                            value = avgSteps?.let { "%,.0f".format(it) } ?: "—",
-                            hint = "daily average",
+                            value = latestHealth?.steps?.let { "%,d".format(it) } ?: "—",
+                            hint = avgSteps?.let { "7d avg %,.0f".format(it) } ?: "no data",
                             modifier = Modifier.weight(1f),
                         )
                         StatCard(
                             label = "HRV",
-                            value = avgHrv?.let { "${Math.round(it)} ms" } ?: "—",
-                            hint = "last night",
+                            value = latestHealth?.hrv?.let { "${Math.round(it)} ms" } ?: "—",
+                            hint = avgHrv?.let { "7d avg ${Math.round(it)} ms" } ?: "no data",
                             modifier = Modifier.weight(1f),
                         )
                     }

@@ -229,7 +229,7 @@ Sessions are append-only and immutable in practice; editing a past session rewri
 
 Three ingestion paths:
 
-- **`garmin-api`** — the primary one. The Android app stores a Garmin Personal API key on-device (never in Firestore), exchanges it for a 24h bearer token, and pulls activities every 12h, on app open, or when the web asks (`meta/garmin.requestedAt`). Garmin sends no CORS headers, so the browser cannot call it; the phone is the sync agent.
+- **`garmin-api`** - the primary one. The Android app stores a Garmin Personal API key on-device (never in Firestore), exchanges it for a 24h bearer token, and pulls activities every hour, on app open, or when the web asks (`meta/garmin.requestedAt`). Garmin sends no CORS headers, so the browser cannot call it; the phone is the sync agent.
 - **`garmin-json`** — a Garmin data-export `summarizedActivities.json`, imported from the web (no key needed).
 - **`strava-csv`** — a Strava `activities.csv`, kept as a fallback.
 
