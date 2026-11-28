@@ -1,13 +1,16 @@
 package com.slot.app.data
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -313,6 +316,8 @@ object GarminSync {
      * directly; no display name is involved. Steps uses one range call because
      * the daily summary endpoint is not in the Personal API.
      */
+    private data class SleepDay(val minutes: Int, val score: Int?)
+
     private suspend fun syncHealth(
         token: String,
         uid: String,
@@ -322,7 +327,57 @@ object GarminSync {
         val today = java.time.LocalDate.now()
         val first = today.minusDays(13)
 
-        val stepsByDate = mutableMapOf<String, Int>()
+        val existing = collection.get().await().documents.associateBy { it.id }
+        val stepsByDate = fetchSteps(token, first, today)
+        val sleepByDate = fetchSleep(token, first, today)
+        val hrvByDate = fetchHrv(token, first, today)
+
+        var saved = 0
+        var covered = 0
+        for (offset in 0 until 14) {
+            val date = today.minusDays(offset.toLong()).toString()
+            val sleep = sleepByDate[date]
+            val steps = stepsByDate[date]
+            val hrv = hrvByDate[date]
+            if (sleep == null && steps == null && hrv == null) continue
+            covered += 1
+
+            val current = existing[date]
+            if (current != null &&
+                current.getDouble("sleepMinutes")?.toInt() == sleep?.minutes &&
+                current.getDouble("sleepScore")?.toInt() == sleep?.score &&
+                current.getDouble("steps")?.toInt() == steps &&
+                current.getDouble("hrv") == hrv
+            ) {
+                continue
+            }
+
+            val payload = mutableMapOf<String, Any?>(
+                "date" to date,
+                "sleepMinutes" to sleep?.minutes,
+                "sleepScore" to sleep?.score,
+                "steps" to steps,
+                "hrv" to hrv,
+                "updatedAt" to FieldValue.serverTimestamp(),
+            )
+            if (current == null) payload["createdAt"] = FieldValue.serverTimestamp()
+
+            collection.document(date).set(payload, SetOptions.merge()).await()
+            saved += 1
+        }
+
+        if (saved > 0) {
+            android.util.Log.d("Slot", "Garmin health sync wrote $saved changed days")
+        }
+        return covered
+    }
+
+    private fun fetchSteps(
+        token: String,
+        first: java.time.LocalDate,
+        today: java.time.LocalDate,
+    ): Map<String, Int> {
+        val result = mutableMapOf<String, Int>()
         var chunkStart = first
         while (!chunkStart.isAfter(today)) {
             val chunkEnd = minOf(chunkStart.plusDays(6), today)
@@ -334,53 +389,110 @@ object GarminSync {
                 for (index in 0 until page.length()) {
                     val item = page.optJSONObject(index) ?: continue
                     val date = item.optString("calendarDate")
-                    if (date.isNotBlank()) {
-                        stepsByDate[date] = item.optInt("totalSteps", 0)
-                    }
+                    if (date.isNotBlank()) result[date] = item.optInt("totalSteps", 0)
                 }
             }
             chunkStart = chunkEnd.plusDays(1)
         }
+        return result
+    }
 
-        var saved = 0
-        for (offset in 0 until 14) {
-            val date = today.minusDays(offset.toLong()).toString()
-
-            val sleep = getJson(token, "/sleep-service/sleep/dailySleep?date=$date")
-            val sleepDto = sleep?.optJSONObject("dailySleepDTO") ?: sleep
-            val sleepSeconds = sleepDto?.optDouble("sleepTimeSeconds", 0.0) ?: 0.0
-            val sleepScore = sleepDto
-                ?.optJSONObject("sleepScores")
-                ?.optJSONObject("overall")
-                ?.optDouble("value", 0.0)
-                ?.takeIf { it > 0 }
-
-            val hrvJson = getJson(token, "/hrv-service/hrv/$date")
-            val hrv = hrvJson
-                ?.optJSONObject("hrvSummary")
-                ?.optDouble("lastNightAvg", 0.0)
-                ?.takeIf { it > 0 }
-                ?: hrvJson?.optDouble("lastNightAvg", 0.0)?.takeIf { it > 0 }
-
-            val steps = stepsByDate[date]
-            if (sleepSeconds <= 0 && steps == null && hrv == null) continue
-
-            collection.document(date).set(
-                mapOf(
-                    "date" to date,
-                    "sleepMinutes" to if (sleepSeconds > 0) (sleepSeconds / 60.0).roundToInt() else null,
-                    "sleepScore" to sleepScore?.roundToInt(),
-                    "steps" to steps,
-                    "hrv" to hrv,
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp(),
-                ),
-                SetOptions.merge(),
-            ).await()
-            saved += 1
+    private fun fetchSleep(
+        token: String,
+        first: java.time.LocalDate,
+        today: java.time.LocalDate,
+    ): Map<String, SleepDay> {
+        val result = mutableMapOf<String, SleepDay>()
+        val page = getJsonArray(
+            token,
+            "/sleep-service/sleep/dailySleepSummariesByDate?startDate=$first&endDate=$today",
+        )
+        if (page != null) {
+            for (index in 0 until page.length()) {
+                val item = page.optJSONObject(index) ?: continue
+                val dto = item.optJSONObject("dailySleepDTO") ?: item
+                val seconds = dto.optDouble("sleepTimeSeconds", 0.0)
+                if (seconds <= 0) continue
+                val date = dto.optString("calendarDate").ifBlank { item.optString("calendarDate") }
+                if (date.isBlank()) continue
+                val score = dto.optJSONObject("sleepScores")
+                    ?.optJSONObject("overall")
+                    ?.optDouble("value", 0.0)
+                    ?.takeIf { it > 0 }
+                    ?.roundToInt()
+                result[date] = SleepDay((seconds / 60.0).roundToInt(), score)
+            }
         }
 
-        return saved
+        // Fallback for a changed range response: one call per missing day.
+        if (result.isEmpty()) {
+            var day = first
+            while (!day.isAfter(today)) {
+                val date = day.toString()
+                val json = getJson(token, "/sleep-service/sleep/dailySleep?date=$date")
+                val dto = json?.optJSONObject("dailySleepDTO") ?: json
+                val seconds = dto?.optDouble("sleepTimeSeconds", 0.0) ?: 0.0
+                if (seconds > 0) {
+                    val score = dto?.optJSONObject("sleepScores")
+                        ?.optJSONObject("overall")
+                        ?.optDouble("value", 0.0)
+                        ?.takeIf { it > 0 }
+                        ?.roundToInt()
+                    result[date] = SleepDay((seconds / 60.0).roundToInt(), score)
+                }
+                day = day.plusDays(1)
+            }
+        }
+        return result
+    }
+
+    private fun fetchHrv(
+        token: String,
+        first: java.time.LocalDate,
+        today: java.time.LocalDate,
+    ): Map<String, Double> {
+        val result = mutableMapOf<String, Double>()
+        val body = getBody(token, "/hrv-service/hrv/daily/$first/$today")
+        if (body != null) {
+            runCatching {
+                val array = JSONArray(body)
+                for (index in 0 until array.length()) {
+                    addHrv(result, array.optJSONObject(index))
+                }
+            }.onFailure {
+                runCatching {
+                    val root = JSONObject(body)
+                    val keys = listOf("hrvSummaries", "hrvSummaryList", "dailyHrvSummaries")
+                    keys.forEach { key ->
+                        val array = root.optJSONArray(key) ?: return@forEach
+                        for (index in 0 until array.length()) {
+                            addHrv(result, array.optJSONObject(index))
+                        }
+                    }
+                }
+            }
+        }
+
+        if (result.isEmpty()) {
+            var day = first
+            while (!day.isAfter(today)) {
+                val date = day.toString()
+                val json = getJson(token, "/hrv-service/hrv/$date")
+                val summary = json?.optJSONObject("hrvSummary") ?: json
+                val avg = summary?.optDouble("lastNightAvg", 0.0)?.takeIf { it > 0 }
+                if (avg != null) result[date] = avg
+                day = day.plusDays(1)
+            }
+        }
+        return result
+    }
+
+    private fun addHrv(out: MutableMap<String, Double>, item: JSONObject?) {
+        if (item == null) return
+        val summary = item.optJSONObject("hrvSummary") ?: item
+        val date = summary.optString("calendarDate").ifBlank { item.optString("calendarDate") }
+        val avg = summary.optDouble("lastNightAvg", 0.0).takeIf { it > 0 } ?: return
+        if (date.isNotBlank()) out[date] = avg
     }
 
     private fun parse(json: JSONObject?): GarminActivity? {
@@ -494,12 +606,25 @@ class GarminSyncWorker(
 
         fun enqueue(context: Context) {
             val request = PeriodicWorkRequestBuilder<GarminSyncWorker>(1, TimeUnit.HOURS)
-                .setInitialDelay(10, TimeUnit.MINUTES)
+                .setInitialDelay(5, TimeUnit.MINUTES)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
                 .build()
+
+            val prefs = context.getSharedPreferences("slot_garmin", Context.MODE_PRIVATE)
+            val policy = if (prefs.getInt("work_interval_min", 0) == 60) {
+                ExistingPeriodicWorkPolicy.KEEP
+            } else {
+                ExistingPeriodicWorkPolicy.UPDATE
+            }
+            prefs.edit().putInt("work_interval_min", 60).apply()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request,
             )
         }

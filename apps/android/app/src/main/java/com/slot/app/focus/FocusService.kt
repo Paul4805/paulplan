@@ -77,7 +77,9 @@ class FocusService : Service() {
                 break
             }
 
-            notifyProgress(remaining)
+            if (remaining % 5 == 0 || remaining <= 3) {
+                notifyProgress(remaining)
+            }
             delay(1_000L)
         }
     }
